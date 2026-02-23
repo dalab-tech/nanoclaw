@@ -1,4 +1,4 @@
-name: stix-oracle
+name: anton
 runtime:
   name: nodejs
   options:
