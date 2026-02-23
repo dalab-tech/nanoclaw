@@ -1,0 +1,21 @@
+{
+  "name": "@dalab/infra-oracle",
+  "version": "1.0.0",
+  "description": "Oracle Cloud free-tier ARM instance for nanoclaw",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@pulumi/github": "^6.12.1",
+    "@pulumi/oci": "^2.0.0",
+    "@pulumi/pulumi": "^3.0.0",
+    "@pulumi/tls": "^5.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  }
+}

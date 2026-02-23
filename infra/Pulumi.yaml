@@ -1,0 +1,6 @@
+name: stix-oracle
+runtime:
+  name: nodejs
+  options:
+    typescript: true
+description: Oracle Cloud free-tier ARM instance for nanoclaw
