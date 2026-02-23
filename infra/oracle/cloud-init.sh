@@ -84,7 +84,7 @@ npm install -g @anthropic-ai/claude-code
 # --- Anti-idle cron (prevents OCI free-tier reclamation) ---
 systemctl enable cron 2>/dev/null || true
 systemctl start cron 2>/dev/null || true
-su - $USER_NAME -c '(crontab -l 2>/dev/null; echo "*/5 * * * * /usr/bin/stress-ng --cpu 1 --timeout 30s > /dev/null 2>&1") | crontab -'
+su - $USER_NAME -c '(crontab -l 2>/dev/null; echo "*/5 * * * * /usr/bin/stress-ng --cpu 2 --timeout 90s > /dev/null 2>&1") | crontab -'
 
 # --- Workspace ---
 mkdir -p "$USER_HOME/workspace"
