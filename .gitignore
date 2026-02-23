@@ -1,0 +1,24 @@
+.env
+
+# Dependencies
+node_modules/
+package-lock.json
+
+# TypeScript build output
+dist/
+bin/
+
+# Pulumi
+.pulumi/
+
+# Claude Code
+.claude/settings.local.json
+
+# MCP config (contains API keys)
+.mcp.json
+
+# Playwright
+.playwright-mcp/
+
+# OS files
+.DS_Store
