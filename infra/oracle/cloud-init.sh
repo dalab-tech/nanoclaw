@@ -127,6 +127,18 @@ if [ -n "$NCLAW_SERVICES" ]; then
     PID=$(systemctl show -p MainPID "$SVC" --value)
     UPTIME=$(ps -o etime= -p "$PID" 2>/dev/null | xargs)
     ok "$SVC running (pid $PID, uptime $UPTIME)"
+
+    # Channel status from recent logs
+    LOGS=$(sudo journalctl -u "$SVC" --no-pager -n 100 --output=cat 2>/dev/null)
+    for CH in Slack GitHub WhatsApp; do
+      if echo "$LOGS" | grep -q "$CH channel connected"; then
+        ok "  $CH connected"
+      elif echo "$LOGS" | grep -q "$CH.*skipping"; then
+        warn "  $CH not configured"
+      elif echo "$LOGS" | grep -q "$CH.*error"; then
+        fail "  $CH error"
+      fi
+    done
   done
 else
   warn "no nanoclaw services running"
