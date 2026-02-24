@@ -186,11 +186,14 @@ function readSecrets(): Record<string, string> {
   return readEnvFile(['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY']);
 }
 
-function buildContainerArgs(mounts: VolumeMount[], containerName: string): string[] {
+function buildContainerArgs(mounts: VolumeMount[], containerName: string, isMain: boolean): string[] {
   const args: string[] = ['run', '-i', '--rm', '--name', containerName];
 
   // Pass host timezone so container's local time matches the user's
   args.push('-e', `TZ=${TIMEZONE}`);
+
+  // Allow containers to resolve host services (useful for docker compose, local APIs)
+  args.push('--add-host=host.docker.internal:host-gateway');
 
   // Run as host user so bind-mounted files are accessible.
   // Skip when running as root (uid 0), as the container's node user (uid 1000),
@@ -207,6 +210,21 @@ function buildContainerArgs(mounts: VolumeMount[], containerName: string): strin
       args.push(...readonlyMountArgs(mount.hostPath, mount.containerPath));
     } else {
       args.push('-v', `${mount.hostPath}:${mount.containerPath}`);
+    }
+  }
+
+  // Mount Docker socket for main channel so agents can run docker compose
+  if (isMain) {
+    const dockerSock = '/var/run/docker.sock';
+    try {
+      const stat = fs.statSync(dockerSock);
+      args.push('-v', `${dockerSock}:${dockerSock}`);
+      // Pass docker group GID so the container user can access the socket
+      if (stat.gid) {
+        args.push('--group-add', String(stat.gid));
+      }
+    } catch {
+      // Docker socket not available, skip
     }
   }
 
@@ -229,7 +247,7 @@ export async function runContainerAgent(
   const mounts = buildVolumeMounts(group, input.isMain);
   const safeName = group.folder.replace(/[^a-zA-Z0-9-]/g, '-');
   const containerName = `nanoclaw-${safeName}-${Date.now()}`;
-  const containerArgs = buildContainerArgs(mounts, containerName);
+  const containerArgs = buildContainerArgs(mounts, containerName, input.isMain);
 
   logger.debug(
     {

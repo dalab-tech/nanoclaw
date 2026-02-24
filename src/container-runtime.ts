@@ -2,9 +2,12 @@
  * Container runtime abstraction for NanoClaw.
  * All runtime-specific logic lives here so swapping runtimes means changing one file.
  */
-import { execSync } from 'child_process';
+import { exec, execSync } from 'child_process';
+import { promisify } from 'util';
 
 import { logger } from './logger.js';
+
+const execAsync = promisify(exec);
 
 /** The container runtime binary name. */
 export const CONTAINER_RUNTIME_BIN = 'docker';
@@ -17,6 +20,22 @@ export function readonlyMountArgs(hostPath: string, containerPath: string): stri
 /** Returns the shell command to stop a container by name. */
 export function stopContainer(name: string): string {
   return `${CONTAINER_RUNTIME_BIN} stop ${name}`;
+}
+
+/** Async container stop. Swallows "already stopped" errors. */
+export async function stopContainerAsync(name: string, timeoutSeconds = 10): Promise<void> {
+  try {
+    await execAsync(`${CONTAINER_RUNTIME_BIN} stop -t ${timeoutSeconds} ${name}`);
+    logger.info({ name }, 'Container stopped');
+  } catch (err) {
+    // Swallow errors from containers that are already stopped
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('No such container') || msg.includes('is not running')) {
+      logger.debug({ name }, 'Container already stopped');
+    } else {
+      logger.warn({ name, err }, 'Failed to stop container');
+    }
+  }
 }
 
 /** Ensure the container runtime is running, starting it if needed. */

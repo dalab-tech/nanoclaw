@@ -23,6 +23,9 @@ RUN apt-get update && apt-get install -y \
     libxshmfence1 \
     curl \
     git \
+    python3 \
+    python3-pip \
+    python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
 # Set Chromium path for agent-browser
@@ -60,6 +63,9 @@ RUN chown -R node:node /workspace && chmod 777 /home/node
 
 # Switch to non-root user (required for --dangerously-skip-permissions)
 USER node
+
+# Trust all git directories (needed for mounted repos with different ownership)
+RUN git config --global --add safe.directory '*'
 
 # Set working directory to group workspace
 WORKDIR /workspace/group

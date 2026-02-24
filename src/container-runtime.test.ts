@@ -10,16 +10,25 @@ vi.mock('./logger.js', () => ({
   },
 }));
 
-// Mock child_process — store the mock fn so tests can configure it
+// Mock child_process — store the mock fns so tests can configure them
 const mockExecSync = vi.fn();
+const mockExec = vi.fn();
 vi.mock('child_process', () => ({
   execSync: (...args: unknown[]) => mockExecSync(...args),
+  exec: (...args: unknown[]) => mockExec(...args),
+}));
+
+// Mock util.promisify — vi.hoisted ensures the fn exists before vi.mock runs
+const mockExecAsync = vi.hoisted(() => vi.fn());
+vi.mock('util', () => ({
+  promisify: () => mockExecAsync,
 }));
 
 import {
   CONTAINER_RUNTIME_BIN,
   readonlyMountArgs,
   stopContainer,
+  stopContainerAsync,
   ensureContainerRuntimeRunning,
   cleanupOrphans,
 } from './container-runtime.js';
@@ -42,6 +51,45 @@ describe('stopContainer', () => {
   it('returns stop command using CONTAINER_RUNTIME_BIN', () => {
     expect(stopContainer('nanoclaw-test-123')).toBe(
       `${CONTAINER_RUNTIME_BIN} stop nanoclaw-test-123`,
+    );
+  });
+});
+
+// --- stopContainerAsync ---
+
+describe('stopContainerAsync', () => {
+  it('stops a container with default timeout', async () => {
+    mockExecAsync.mockResolvedValueOnce({ stdout: '', stderr: '' });
+
+    await stopContainerAsync('nanoclaw-test-123');
+
+    expect(mockExecAsync).toHaveBeenCalledWith(
+      `${CONTAINER_RUNTIME_BIN} stop -t 10 nanoclaw-test-123`,
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      { name: 'nanoclaw-test-123' },
+      'Container stopped',
+    );
+  });
+
+  it('uses custom timeout', async () => {
+    mockExecAsync.mockResolvedValueOnce({ stdout: '', stderr: '' });
+
+    await stopContainerAsync('nanoclaw-test-456', 30);
+
+    expect(mockExecAsync).toHaveBeenCalledWith(
+      `${CONTAINER_RUNTIME_BIN} stop -t 30 nanoclaw-test-456`,
+    );
+  });
+
+  it('swallows "already stopped" errors', async () => {
+    mockExecAsync.mockRejectedValueOnce(new Error('No such container: nanoclaw-test-789'));
+
+    await stopContainerAsync('nanoclaw-test-789'); // should not throw
+
+    expect(logger.debug).toHaveBeenCalledWith(
+      { name: 'nanoclaw-test-789' },
+      'Container already stopped',
     );
   });
 });

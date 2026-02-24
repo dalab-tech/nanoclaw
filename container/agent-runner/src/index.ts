@@ -509,7 +509,8 @@ async function main(): Promise<void> {
   }
 
   // Build SDK env: merge secrets into process.env for the SDK only.
-  // Secrets never touch process.env itself, so Bash subprocesses can't see them.
+  // Secrets are passed via sdkEnv so Bash subprocesses inherit them,
+  // but the sanitize hook strips sensitive keys before execution.
   const sdkEnv: Record<string, string | undefined> = { ...process.env };
   for (const [key, value] of Object.entries(containerInput.secrets || {})) {
     sdkEnv[key] = value;
