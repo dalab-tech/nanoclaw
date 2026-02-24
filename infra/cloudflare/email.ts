@@ -147,6 +147,7 @@ const dalabTechForwards: EmailForward[] = [
   { name: 'us', destination: 'dev.lamson+dalab.inbox@gmail.com' },
   { name: 'inbox', destination: 'dev.lamson+dalab.inbox@gmail.com' },
   { name: 'support', destination: 'dev.lamson+dalab.support@gmail.com' },
+  { name: 'anton', destination: 'dev.lamson+dalab.anton@gmail.com' },
   { name: 'son', destination: 'dev.lamson+dalab.son@gmail.com' },
   { name: 'dang', destination: 'dangns229+dalab.dang@gmail.com' },
   { name: 'thoai', destination: 'thoai.vhp+dalab.thoai@gmail.com' },
