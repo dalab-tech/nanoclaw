@@ -128,8 +128,9 @@ if [ -n "$NCLAW_SERVICES" ]; then
     UPTIME=$(ps -o etime= -p "$PID" 2>/dev/null | xargs)
     ok "$SVC running (pid $PID, uptime $UPTIME)"
 
-    # Channel status from recent logs
-    LOGS=$(sudo journalctl -u "$SVC" --no-pager -n 100 --output=cat 2>/dev/null)
+    # Channel status from logs since service started
+    SVC_START=$(systemctl show -p ActiveEnterTimestamp "$SVC" --value 2>/dev/null)
+    LOGS=$(sudo journalctl -u "$SVC" --since="$SVC_START" --no-pager --output=cat 2>/dev/null)
     for CH in Slack GitHub WhatsApp; do
       if echo "$LOGS" | grep -q "$CH channel connected"; then
         ok "  $CH connected"
