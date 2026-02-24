@@ -14,14 +14,17 @@ ARM A1.Flex instance on Oracle Cloud Always Free tier.
 ## Quick Reference
 
 ```bash
-# Connect (runs status check, drops into ~/workspace)
+# Connect as 'son' (runs status check, drops into ~/workspace)
 ./infra/oracle/connect-nanoclaw.sh
 
+# Connect as 'anton'
+./infra/oracle/connect-nanoclaw.sh anton
+
 # Or SSH directly
-ssh ubuntu@$(cd infra/oracle && pulumi stack output publicIp)
+ssh son@$(cd infra/oracle && pulumi stack output publicIp)
 
 # Status check on the instance
-~/workspace/status.sh
+status
 ```
 
 ## Provisioning a New Instance
@@ -62,45 +65,60 @@ tail -f retry.log     # monitor progress
 
 ### 4. Post-deploy setup
 
-Cloud-init automatically installs: Docker, Node.js 20, Claude Code CLI, git, tmux, htop, stress-ng, UFW, fail2ban, 4GB swap, anti-idle cron, and `~/workspace/status.sh`.
+Cloud-init automatically installs: Docker, Node.js 20, Claude Code CLI, git, tmux, htop, stress-ng, UFW, fail2ban, 4GB swap, anti-idle cron, and the `status` command (`/usr/local/bin/status`).
+
+It also creates two users:
+
+| User | Purpose | Home |
+|------|---------|------|
+| `son` | Human admin — SSH access, sudo, instance management | `/home/son/` |
+| `anton` | Bot persona — runs nanoclaw, deploy key, task state (`~/.anton/`) | `/home/anton/` |
+
+Both have sudo, docker access, and SSH authorized keys copied from the default `ubuntu` user. Each persona (like `anton`) runs its own nanoclaw instance, enabling multiple personas on one host.
 
 After cloud-init completes (~2 min), SSH in and finish setup:
 
 ```bash
 ./connect-nanoclaw.sh
 
+# Switch to anton to set up the persona
+sudo su - anton
+
 # Authenticate Claude Code (device-code flow, no browser needed)
 claude auth login
 
-# Clone and setup nanoclaw
-cd ~/workspace
-git clone https://github.com/qwibitai/nanoclaw.git
-cd nanoclaw
+# Nanoclaw repo is auto-cloned to ~/workspace/nanoclaw via deploy key
+cd ~/workspace/nanoclaw
 claude    # then type: /setup
+```
 
-# Enable nanoclaw as a systemd service
-sudo tee /etc/systemd/system/nanoclaw.service > /dev/null << 'EOF'
+Enable nanoclaw as a systemd service for the `anton` persona:
+
+```bash
+sudo tee /etc/systemd/system/nanoclaw@anton.service > /dev/null << 'EOF'
 [Unit]
-Description=Nanoclaw AI Assistant
+Description=Nanoclaw (%i persona)
 After=network.target docker.service
 Requires=docker.service
 
 [Service]
 Type=simple
-User=ubuntu
-WorkingDirectory=/home/ubuntu/workspace/nanoclaw
+User=%i
+WorkingDirectory=/home/%i/workspace/nanoclaw
 ExecStart=/usr/bin/node dist/index.js
 Restart=always
 RestartSec=5
-EnvironmentFile=/home/ubuntu/workspace/nanoclaw/.env
+EnvironmentFile=/home/%i/workspace/nanoclaw/.env
 
 [Install]
 WantedBy=multi-user.target
 EOF
 sudo systemctl daemon-reload
-sudo systemctl enable nanoclaw
-sudo systemctl start nanoclaw
+sudo systemctl enable nanoclaw@anton
+sudo systemctl start nanoclaw@anton
 ```
+
+To add another persona later, create the user, clone nanoclaw into their workspace, configure their `.env`, and `systemctl enable nanoclaw@<name>`.
 
 ## Destroying
 
@@ -114,9 +132,9 @@ pulumi stack rm   # removes the stack
 ### Nanoclaw service
 
 ```bash
-sudo systemctl status nanoclaw    # check status
-sudo systemctl restart nanoclaw   # restart
-journalctl -u nanoclaw -f         # live logs
+sudo systemctl status nanoclaw@anton    # check status
+sudo systemctl restart nanoclaw@anton   # restart
+journalctl -u nanoclaw@anton -f         # live logs
 ```
 
 ### Free tier limits
@@ -158,7 +176,7 @@ infra/oracle/
   network.ts             # VCN, subnet, security list, IGW, routes
   compute.ts             # Instance + image lookup + cloud-init
   index.ts               # Stack outputs (publicIp, sshCommand, etc.)
-  cloud-init.sh          # Bootstrap: Docker, Node, Claude Code, firewall, swap, anti-idle, status.sh
+  cloud-init.sh          # Bootstrap: Docker, Node, Claude Code, firewall, swap, anti-idle, users, status
   setup.sh               # Interactive setup for new stacks
   retry.sh               # Retry loop for capacity-constrained regions
   connect-nanoclaw.sh    # SSH connect with status dashboard

@@ -81,17 +81,36 @@ echo '/swapfile none swap sw 0 0' >> /etc/fstab
 # --- Claude Code CLI ---
 npm install -g @anthropic-ai/claude-code
 
+# --- Users ---
+# son: human admin for managing nanoclaw and the instance
+# anton: bot user for autonomous GitHub engineering tasks
+for NEW_USER in son anton; do
+  useradd -m -s /bin/bash "$NEW_USER"
+  usermod -aG docker "$NEW_USER"
+  echo "$NEW_USER ALL=(ALL) NOPASSWD:ALL" > "/etc/sudoers.d/$NEW_USER"
+  chmod 440 "/etc/sudoers.d/$NEW_USER"
+  # Copy SSH authorized keys from default OS user
+  mkdir -p "/home/$NEW_USER/.ssh"
+  cp "$USER_HOME/.ssh/authorized_keys" "/home/$NEW_USER/.ssh/authorized_keys"
+  chown -R "$NEW_USER:$NEW_USER" "/home/$NEW_USER/.ssh"
+  chmod 700 "/home/$NEW_USER/.ssh"
+  chmod 600 "/home/$NEW_USER/.ssh/authorized_keys"
+  # Workspace
+  mkdir -p "/home/$NEW_USER/workspace"
+  chown "$NEW_USER:$NEW_USER" "/home/$NEW_USER/workspace"
+done
+
+# anton-specific: state directory for GitHub task tracking
+mkdir -p /home/anton/.anton
+chown anton:anton /home/anton/.anton
+
 # --- Anti-idle cron (prevents OCI free-tier reclamation) ---
 systemctl enable cron 2>/dev/null || true
 systemctl start cron 2>/dev/null || true
 su - $USER_NAME -c '(crontab -l 2>/dev/null; echo "*/5 * * * * /usr/bin/stress-ng --cpu 2 --timeout 90s > /dev/null 2>&1") | crontab -'
 
-# --- Workspace ---
-mkdir -p "$USER_HOME/workspace"
-
-# --- GitHub deploy key + repo clone (appended by Pulumi) ---
-
-cat > "$USER_HOME/workspace/status.sh" << 'STATUS'
+# --- Status script (available to all users) ---
+cat > /usr/local/bin/status << 'STATUS'
 #!/bin/bash
 G="\033[0;32m" R="\033[0;31m" Y="\033[1;33m" C="\033[0;36m" N="\033[0m"
 ok() { echo -e "  ${G}✓${N} $1"; }
@@ -109,7 +128,7 @@ if [ "$NCLAW_COUNT" -eq 1 ]; then
 elif [ "$NCLAW_COUNT" -gt 1 ]; then
   fail "MULTIPLE nanoclaw hosts running ($NCLAW_COUNT) — WhatsApp conflicts! Kill extras: kill $NCLAW_PIDS"
 else
-  warn "nanoclaw host not running — cd ~/workspace/nanoclaw && node dist/index.js"
+  warn "nanoclaw host not running"
 fi
 
 if systemctl is-active --quiet docker 2>/dev/null; then
@@ -119,19 +138,19 @@ else
   fail "docker not running"
 fi
 
-if claude auth status 2>&1 | grep -q '"loggedIn": true'; then
-  ok "claude authenticated"
+if su - anton -c "claude auth status" 2>&1 | grep -q '"loggedIn": true'; then
+  ok "claude authenticated (anton)"
 else
-  warn "claude not authenticated — run: claude auth login"
+  warn "claude not authenticated (anton) — run: sudo su - anton -c 'claude auth login'"
 fi
 
-if crontab -l 2>/dev/null | grep -q stress-ng; then
+if crontab -l -u ubuntu 2>/dev/null | grep -q stress-ng; then
   ok "anti-idle cron active"
 else
   warn "anti-idle cron missing"
 fi
 
-echo -e "\n${C}reclamation risk${N} (safe if any metric ≥20%)"
+echo -e "\n${C}reclamation risk${N} (safe if any metric >=20%)"
 CPU_USED=$(top -bn2 -d0.5 | grep '%Cpu' | tail -1 | awk '{printf "%.0f", 100 - $8}')
 MEM_PCT=$(free | awk '/Mem:/{printf "%.0f", $3/$2*100}')
 if [ "$CPU_USED" -ge 20 ]; then ok "cpu: ${CPU_USED}%"; else warn "cpu: ${CPU_USED}% (<20%) — normal between stress-ng bursts"; fi
@@ -144,8 +163,8 @@ echo -e "\n${C}resources${N}"
 echo "  mem: $MEM  disk: $DISK  load: $LOAD"
 echo ""
 STATUS
+chmod +x /usr/local/bin/status
 
-chmod +x "$USER_HOME/workspace/status.sh"
-chown $USER_NAME:$USER_NAME "$USER_HOME/workspace/status.sh"
+# --- GitHub deploy key + repo clone (appended by Pulumi) ---
 
 echo "=== cloud-init complete ==="

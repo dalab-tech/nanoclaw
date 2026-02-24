@@ -54,30 +54,30 @@ const baseCloudInit = fs.readFileSync(
 const userData = pulumi
   .all([privateKeyOpenssh, gitUserName, gitUserEmail])
   .apply(([privKey, userName, userEmail]) => {
-    const sshUser = isFlexShape ? "ubuntu" : "opc";
     const repoUrl = `git@github.com:${githubOwner}/${githubRepo}.git`;
 
+    // Deploy key and git config go to 'anton' user (bot persona that runs nanoclaw)
     const deployKeySection = `
-# Written by Pulumi — deploy key for GitHub
-mkdir -p /home/${sshUser}/.ssh
-cat > /home/${sshUser}/.ssh/github_deploy_key << 'DEPLOY_KEY'
+# Written by Pulumi — deploy key for GitHub (anton user)
+mkdir -p /home/anton/.ssh
+cat > /home/anton/.ssh/github_deploy_key << 'DEPLOY_KEY'
 ${privKey.trim()}
 DEPLOY_KEY
-chmod 600 /home/${sshUser}/.ssh/github_deploy_key
-chown ${sshUser}:${sshUser} /home/${sshUser}/.ssh/github_deploy_key
+chmod 600 /home/anton/.ssh/github_deploy_key
+chown anton:anton /home/anton/.ssh/github_deploy_key
 
-cat > /home/${sshUser}/.ssh/config << 'SSHCONFIG'
+cat > /home/anton/.ssh/config << 'SSHCONFIG'
 Host github.com
   IdentityFile ~/.ssh/github_deploy_key
   IdentitiesOnly yes
   StrictHostKeyChecking accept-new
 SSHCONFIG
-chmod 600 /home/${sshUser}/.ssh/config
-chown ${sshUser}:${sshUser} /home/${sshUser}/.ssh/config
+chmod 600 /home/anton/.ssh/config
+chown anton:anton /home/anton/.ssh/config
 
-su - ${sshUser} -c "git clone ${repoUrl} /home/${sshUser}/workspace/nanoclaw" || true
-su - ${sshUser} -c "git config --global user.name '${userName}'"
-su - ${sshUser} -c "git config --global user.email '${userEmail}'"
+su - anton -c "git clone ${repoUrl} /home/anton/workspace/nanoclaw" || true
+su - anton -c "git config --global user.name '${userName}'"
+su - anton -c "git config --global user.email '${userEmail}'"
 `;
 
     const fullScript = baseCloudInit + deployKeySection;

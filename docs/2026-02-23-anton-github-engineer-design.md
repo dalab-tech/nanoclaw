@@ -52,9 +52,21 @@ Fine-grained PAT generated from `anton-dalab`, scoped to the `dalab` org:
 | Contents | Read & Write | Push branches |
 | Metadata | Read | Required baseline |
 
-PAT stored in nanoclaw's `.env` on the instance as `GITHUB_TOKEN`. Set to expire every 90 days.
+PAT stored in `/home/anton/.anton/.env` on the instance as `GITHUB_TOKEN`. Set to expire every 90 days.
 
 No org-level permissions needed. The team boundary controls which repos Anton can access.
+
+### Instance Users
+
+The Oracle Cloud instance has dedicated users for separation of concerns:
+
+| User | Purpose | Home |
+|---|---|---|
+| `son` | Human admin — SSH access, sudo, instance management | `/home/son/` |
+| `anton` | Bot persona — runs its own nanoclaw instance, deploy key, task state | `/home/anton/` |
+| `ubuntu` | OCI default — anti-idle cron only | `/home/ubuntu/` |
+
+Both `son` and `anton` have sudo, docker access, and SSH authorized keys. Each persona (like `anton`) runs its own nanoclaw instance as a systemd template service (`nanoclaw@anton`). This enables multiple personas on one host — to add another, create the user, clone nanoclaw, configure its `.env`, and enable `nanoclaw@<name>`.
 
 ## Polling Loop
 
@@ -71,7 +83,7 @@ Returns all open issues and PRs assigned to Anton across all repos it has access
 
 ### State Tracking
 
-Local file `~/.anton/active-tasks.json` tracks known assignments. The poller compares API results against this file to detect:
+Local file `/home/anton/.anton/active-tasks.json` tracks known assignments. The poller compares API results against this file to detect:
 
 - **New issue assigned** → trigger Workflow B (plan creation)
 - **New PR assigned** → trigger Workflow A (execute plan)
@@ -211,7 +223,7 @@ In Slack, these are sent as messages in a channel or DM. Anton replies in-thread
 
 - Script/module that runs every 5 minutes via systemd timer
 - Calls GitHub search API for assigned issues/PRs
-- Maintains `~/.anton/active-tasks.json` for state
+- Maintains `/home/anton/.anton/active-tasks.json` for state
 - Detects new assignments and draft-to-ready transitions
 - Triggers agent execution
 
