@@ -139,10 +139,10 @@ else
   fail "docker not running"
 fi
 
-if su - anton -c "claude auth status" 2>&1 | grep -q '"loggedIn": true'; then
+if sudo -u anton claude auth status 2>&1 | grep -q '"loggedIn": true'; then
   ok "claude authenticated (anton)"
 else
-  warn "claude not authenticated (anton) — run: sudo su - anton -c 'claude auth login'"
+  warn "claude not authenticated (anton) — run: sudo -u anton claude auth login"
 fi
 
 if sudo crontab -l -u ubuntu 2>/dev/null | grep -q stress-ng; then

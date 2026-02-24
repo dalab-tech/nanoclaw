@@ -5,8 +5,8 @@
 IP=$(cd "$(dirname "$0")" && pulumi stack output publicIp)
 USER=${1:-son}
 
-# Pre-flight checks (run as the target user)
-ssh -q "$USER@$IP" 'status 2>/dev/null || true'
+# Pre-flight status check (timeout prevents hangs)
+ssh -q -o ConnectTimeout=5 "$USER@$IP" 'timeout 10 status 2>/dev/null' || true
 
 # Change terminal background to light mode to indicate SSH session
 printf '\033]11;#fff8e7\007'
