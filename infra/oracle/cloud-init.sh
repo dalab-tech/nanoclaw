@@ -78,8 +78,8 @@ mkswap /swapfile
 swapon /swapfile
 echo '/swapfile none swap sw 0 0' >> /etc/fstab
 
-# --- Claude Code CLI ---
-npm install -g @anthropic-ai/claude-code
+# --- Claude Code CLI (native binary, auto-updates) ---
+curl -fsSL https://claude.ai/install.sh | bash
 
 # --- Users ---
 # son: human admin for managing nanoclaw and the instance
