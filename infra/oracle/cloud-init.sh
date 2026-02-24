@@ -119,22 +119,22 @@ fail() { echo -e "  ${R}✗${N} $1"; }
 
 echo -e "${C}nanoclaw status${N}"
 
-NCLAW_PIDS=$(pgrep -f "node.*nanoclaw/dist/index.js" 2>/dev/null || true)
-if [ -z "$NCLAW_PIDS" ]; then
-  warn "nanoclaw host not running"
+# Check nanoclaw services (template instances like nanoclaw@anton)
+NCLAW_SERVICES=$(systemctl list-units --type=service --state=running --no-legend 'nanoclaw@*' 2>/dev/null | awk '{print $1}')
+if [ -n "$NCLAW_SERVICES" ]; then
+  for SVC in $NCLAW_SERVICES; do
+    PERSONA=$(echo "$SVC" | sed 's/nanoclaw@\(.*\)\.service/\1/')
+    PID=$(systemctl show -p MainPID "$SVC" --value)
+    UPTIME=$(ps -o etime= -p "$PID" 2>/dev/null | xargs)
+    ok "$SVC running (pid $PID, uptime $UPTIME)"
+  done
 else
-  NCLAW_COUNT=$(echo "$NCLAW_PIDS" | wc -l)
-  if [ "$NCLAW_COUNT" -eq 1 ]; then
-    NCLAW_UP=$(ps -o etime= -p "$NCLAW_PIDS" 2>/dev/null | xargs)
-    ok "nanoclaw host running (pid $NCLAW_PIDS, uptime $NCLAW_UP)"
-  else
-    fail "MULTIPLE nanoclaw hosts running ($NCLAW_COUNT) — WhatsApp conflicts! Kill extras: kill $NCLAW_PIDS"
-  fi
+  warn "no nanoclaw services running"
 fi
 
 if systemctl is-active --quiet docker 2>/dev/null; then
   AGENT_COUNT=$(docker ps --filter "name=nanoclaw-" --format '{{.Names}}' 2>/dev/null | wc -l)
-  ok "docker running ($AGENT_COUNT nanoclaw agent containers)"
+  ok "docker running ($AGENT_COUNT agent containers)"
 else
   fail "docker not running"
 fi
