@@ -119,16 +119,17 @@ fail() { echo -e "  ${R}✗${N} $1"; }
 
 echo -e "${C}nanoclaw status${N}"
 
-NCLAW_PIDS=$(pgrep -f "node.*nanoclaw/dist/index.js" 2>/dev/null)
-NCLAW_COUNT=$(echo "$NCLAW_PIDS" | grep -c . 2>/dev/null || echo 0)
-if [ "$NCLAW_COUNT" -eq 1 ]; then
-  NCLAW_PID=$(echo "$NCLAW_PIDS" | head -1)
-  NCLAW_UP=$(ps -o etime= -p "$NCLAW_PID" 2>/dev/null | xargs)
-  ok "nanoclaw host running (pid $NCLAW_PID, uptime $NCLAW_UP)"
-elif [ "$NCLAW_COUNT" -gt 1 ]; then
-  fail "MULTIPLE nanoclaw hosts running ($NCLAW_COUNT) — WhatsApp conflicts! Kill extras: kill $NCLAW_PIDS"
-else
+NCLAW_PIDS=$(pgrep -f "node.*nanoclaw/dist/index.js" 2>/dev/null || true)
+if [ -z "$NCLAW_PIDS" ]; then
   warn "nanoclaw host not running"
+else
+  NCLAW_COUNT=$(echo "$NCLAW_PIDS" | wc -l)
+  if [ "$NCLAW_COUNT" -eq 1 ]; then
+    NCLAW_UP=$(ps -o etime= -p "$NCLAW_PIDS" 2>/dev/null | xargs)
+    ok "nanoclaw host running (pid $NCLAW_PIDS, uptime $NCLAW_UP)"
+  else
+    fail "MULTIPLE nanoclaw hosts running ($NCLAW_COUNT) — WhatsApp conflicts! Kill extras: kill $NCLAW_PIDS"
+  fi
 fi
 
 if systemctl is-active --quiet docker 2>/dev/null; then
@@ -144,7 +145,7 @@ else
   warn "claude not authenticated (anton) — run: sudo su - anton -c 'claude auth login'"
 fi
 
-if crontab -l -u ubuntu 2>/dev/null | grep -q stress-ng; then
+if sudo crontab -l -u ubuntu 2>/dev/null | grep -q stress-ng; then
   ok "anti-idle cron active"
 else
   warn "anti-idle cron missing"
