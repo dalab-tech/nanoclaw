@@ -1,0 +1,13 @@
+config:
+  gcp:project: nanoclaw-prod
+  gcp:region: us-central1
+  nanoclaw:zone: us-central1-a
+  nanoclaw:machineType: e2-standard-2
+  nanoclaw:diskSizeGb: "50"
+  nanoclaw:githubOwner: qwibitai
+  nanoclaw:githubRepo: nanoclaw
+  nanoclaw:gitUserName: Anton
+  nanoclaw:gitUserEmail: anton@datech.lab
+  nanoclaw:deployUser: anton
+  nanoclaw:githubToken:
+    secure: PLACEHOLDER_RUN_pulumi_config_set_TO_POPULATE

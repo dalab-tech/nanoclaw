@@ -1,0 +1,6 @@
+name: anton-gcp
+runtime:
+  name: nodejs
+  options:
+    typescript: true
+description: GCP instance for nanoclaw
