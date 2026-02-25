@@ -1,0 +1,16 @@
+encryptionsalt: v1:yRIg3H53ZJc=:v1:5OWTHSH1XZ/wMki+:Cx7LKAreytowL2L2D02OhlA/Lu1ysg==
+config:
+  gcp:project: dalab-anton
+  gcp:region: us-central1
+  nanoclaw:zone: us-central1-a
+  nanoclaw:machineType: e2-standard-2
+  nanoclaw:diskSizeGb: "50"
+  nanoclaw:githubOwner: dalab-tech
+  nanoclaw:githubRepo: anton
+  nanoclaw:gitUserName: Anton
+  nanoclaw:gitUserEmail: anton@datech.lab
+  nanoclaw:deployUser: anton
+  nanoclaw:githubToken:
+    secure: v1:IDzGhkiHoKZvLFdz:uYYJTgJobPUaoXFt/utZp7/6L15ZKqTZOADbAp+9tbr/BDKarnLS8PaLTJ0mPqhZowOre55p1ms=
+  nanoclaw:sshPrivateKey:
+    secure: v1:Dls/NKn40mhkp2ZH:xwq1TRAb5gWCgBoD/GKQanf52cNjqBEDkyKj6HmCpfu0LGlWZY3//s4uOUQIQWoDLOenH8rOUTMlxvgwSKd/QCbB0SglrZRddAU8SV+2uStSVjR9lWd4ECnAtikIaM+QJwPeNd8DoCJ8LKBokmz2KUvzDrjbu3zuhy6Pm7DpzfzaPIrUikKRIH3118S6UkG+LoUXnOvuJUjeP4ckaDluvpEZP42+q5oqpWxXVtLONSYrqWMXaJF/lRv3md7LAdDQ2hyXTC+poWJSAdkdivBbqIvbtDUtqvcX2Z8amVge12xwfXCFHGiDxXMI3gaLidkC0z3LLYXaeDbC1ikuUcbzljvTYfsCUNxymccozkSsutvCuMuAZhb++1Ufv2FD803ybwHl90jve6QueX5abauRRau6f/lwLUfnHpsLA8CHDEdOz9WN6PUsHpXEzTRnwdau/vy4aBVWLyhUmBkGqBCWoS6l4y/fsZ+nvfqqjGRXBBLKd8bY+7IgTrEcacCL7es05bi6u9ZtezY9JeTw6vqzRShOAi2BMv3V4oEa52jaxfDGF8gbJ7D6Y6/0

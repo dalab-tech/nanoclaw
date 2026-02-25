@@ -4,10 +4,10 @@ GCE instance on Google Cloud with IAP-only SSH access and GitHub Actions auto-de
 
 | Spec | Value |
 |------|-------|
-| Machine | e2-standard-2 |
-| CPUs | 2 vCPU (x86) |
-| RAM | 8 GB |
-| Disk | 50 GB pd-ssd |
+| Machine | e2-micro (free tier eligible) |
+| CPUs | 0.25 shared vCPU (x86) |
+| RAM | 1 GB |
+| Disk | 20 GB pd-standard |
 | OS | Ubuntu 24.04 LTS (amd64) |
 | Region | us-central1-a |
 
@@ -33,7 +33,7 @@ pulumi stack init prod
 
 # Required
 pulumi config set gcp:project <project-id>
-pulumi config set nanoclaw:githubOwner qwibitai
+pulumi config set nanoclaw:githubOwner dalab-tech
 pulumi config set nanoclaw:githubRepo nanoclaw
 pulumi config set nanoclaw:gitUserName Anton
 pulumi config set nanoclaw:gitUserEmail anton@datech.lab
@@ -42,8 +42,9 @@ pulumi config set --secret nanoclaw:githubToken <PAT>
 # Optional (defaults shown)
 pulumi config set gcp:region us-central1
 pulumi config set nanoclaw:zone us-central1-a
-pulumi config set nanoclaw:machineType e2-standard-2
-pulumi config set nanoclaw:diskSizeGb 50
+pulumi config set nanoclaw:machineType e2-micro
+pulumi config set nanoclaw:diskSizeGb 20
+pulumi config set nanoclaw:diskType pd-standard
 pulumi config set nanoclaw:deployUser anton
 ```
 
@@ -112,7 +113,7 @@ OCI deploy is manual-only via `workflow_dispatch` (target: `oci` or `both`).
 - **No SSH from internet** — firewall allows port 22 only from IAP range (`35.235.240.0/20`)
 - **OS Login** — SSH keys managed by Google identity, no static keys on the VM
 - **Instance-scoped admin** — CI/CD SA has `osAdminLogin` on this VM only, not project-wide
-- **WIF** — GitHub Actions authenticates via OIDC, tokens expire in minutes, scoped to `qwibitai/nanoclaw`
+- **WIF** — GitHub Actions authenticates via OIDC, tokens expire in minutes, scoped to `dalab-tech/nanoclaw`
 - **VM SA** — minimal roles: `logging.logWriter` + `monitoring.metricWriter`
 
 ## Managing the Instance

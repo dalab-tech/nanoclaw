@@ -10,11 +10,13 @@ const nanoclawConfig = new pulumi.Config("nanoclaw");
 export const projectId = gcpConfig.require("project");
 export const region = gcpConfig.get("region") || "us-central1";
 export const zone = nanoclawConfig.get("zone") || `${region}-a`;
-export const machineType = nanoclawConfig.get("machineType") || "e2-standard-2";
-export const diskSizeGb = parseInt(nanoclawConfig.get("diskSizeGb") || "50", 10);
+export const machineType = nanoclawConfig.get("machineType") || "e2-micro";
+export const diskSizeGb = parseInt(nanoclawConfig.get("diskSizeGb") || "20", 10);
+export const diskType = nanoclawConfig.get("diskType") || "pd-standard";
 
-// GitHub deploy key + git config
+// GitHub config
 export const githubToken = nanoclawConfig.requireSecret("githubToken");
+export const sshPrivateKey = nanoclawConfig.requireSecret("sshPrivateKey");
 export const githubOwner = nanoclawConfig.require("githubOwner");
 export const githubRepo = nanoclawConfig.require("githubRepo");
 export const gitUserName = nanoclawConfig.require("gitUserName");

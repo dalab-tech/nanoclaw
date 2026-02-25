@@ -7,7 +7,9 @@ import {
   zone,
   machineType,
   diskSizeGb,
+  diskType,
   deployUser,
+  sshPrivateKey,
   githubOwner,
   githubRepo,
   gitUserName,
@@ -15,49 +17,44 @@ import {
 } from "./config";
 import { subnet } from "./network";
 import { vmSa, cicdSa } from "./service-accounts";
-import { privateKeyOpenssh } from "./github";
 import { enabledApis } from "./apis";
 
-// Cloud-init script — base script + deploy key section appended by Pulumi
+// Cloud-init script — base script + git config section appended by Pulumi
 const baseCloudInit = fs.readFileSync(
   path.join(__dirname, "cloud-init.sh"),
   "utf-8"
 );
 
 const userData = pulumi
-  .all([privateKeyOpenssh, gitUserName, gitUserEmail])
+  .all([sshPrivateKey, gitUserName, gitUserEmail])
   .apply(([privKey, userName, userEmail]) => {
     const repoUrl = `git@github.com:${githubOwner}/${githubRepo}.git`;
 
-    const deployKeySection = `
-# Written by Pulumi — deploy key for GitHub (${deployUser} user)
+    const gitSection = `
+# Written by Pulumi — SSH key for GitHub (${deployUser} user)
 mkdir -p /home/${deployUser}/.ssh
-cat > /home/${deployUser}/.ssh/github_deploy_key << 'DEPLOY_KEY'
+cat > /home/${deployUser}/.ssh/github_key << 'SSHKEY'
 ${privKey.trim()}
-DEPLOY_KEY
-chmod 600 /home/${deployUser}/.ssh/github_deploy_key
-chown ${deployUser}:${deployUser} /home/${deployUser}/.ssh/github_deploy_key
+SSHKEY
+chmod 600 /home/${deployUser}/.ssh/github_key
+chown ${deployUser}:${deployUser} /home/${deployUser}/.ssh/github_key
 
 cat > /home/${deployUser}/.ssh/config << 'SSHCONFIG'
 Host github.com
-  IdentityFile ~/.ssh/github_deploy_key
+  IdentityFile ~/.ssh/github_key
   IdentitiesOnly yes
   StrictHostKeyChecking accept-new
 SSHCONFIG
 chmod 600 /home/${deployUser}/.ssh/config
 chown ${deployUser}:${deployUser} /home/${deployUser}/.ssh/config
 
-su - ${deployUser} -c "git clone ${repoUrl} /home/${deployUser}/nanoclaw" || true
+su - ${deployUser} -c "git clone ${repoUrl} /home/${deployUser}/${githubRepo}" || true
 su - ${deployUser} -c "git config --global user.name '${userName}'"
 su - ${deployUser} -c "git config --global user.email '${userEmail}'"
 `;
 
-    return fullScript(deployKeySection);
+    return baseCloudInit + gitSection;
   });
-
-function fullScript(deployKeySection: string): string {
-  return baseCloudInit + deployKeySection;
-}
 
 export const instance = new gcp.compute.Instance("nanoclaw-vm", {
   project: projectId,
@@ -69,7 +66,7 @@ export const instance = new gcp.compute.Instance("nanoclaw-vm", {
     initializeParams: {
       image: "ubuntu-os-cloud/ubuntu-2404-lts-amd64",
       size: diskSizeGb,
-      type: "pd-ssd",
+      type: diskType,
     },
   },
   networkInterfaces: [{

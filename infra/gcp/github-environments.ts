@@ -1,18 +1,14 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as github from "@pulumi/github";
-import { githubToken, githubOwner, githubRepo, projectId, zone } from "./config";
+import { githubRepo, projectId, zone } from "./config";
 import { cicdSa } from "./service-accounts";
 import { workloadIdentityProvider } from "./workload-identity";
 import { instance } from "./compute";
+import { githubProvider } from "./github";
 
 // =============================================================================
 // GitHub Environment & Variables for GCP deploy
 // =============================================================================
-
-const githubProvider = new github.Provider("github-env", {
-  owner: githubOwner,
-  token: githubToken,
-});
 
 const ghEnv = new github.RepositoryEnvironment("gcp-env", {
   repository: githubRepo,

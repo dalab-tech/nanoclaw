@@ -1,5 +1,4 @@
 import { instance } from "./compute";
-import { publicKeyOpenssh, deployKeyId } from "./github";
 import { cicdSa } from "./service-accounts";
 import { workloadIdentityProvider } from "./workload-identity";
 
@@ -19,7 +18,3 @@ export const cicdSaEmail = cicdSa.email;
 
 // WIF provider name (for GitHub Actions auth)
 export const workloadIdentityProviderName = workloadIdentityProvider.name;
-
-// GitHub deploy key (public half — for reference)
-export const deployKeyPublic = publicKeyOpenssh;
-export const githubDeployKeyId = deployKeyId;
