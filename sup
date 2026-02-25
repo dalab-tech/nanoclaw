@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# sup — NanoClaw remote diagnostics
+# Usage: sup         Live log tail
+#        sup --snap  Quick status snapshot
+
+set -euo pipefail
+
+NANOCLAW_HOST=129.146.4.124
+NANOCLAW_USER=anton
+
+HOST="${NANOCLAW_HOST:?Set NANOCLAW_HOST to the server IP/hostname}"
+USER="${NANOCLAW_USER:?Set NANOCLAW_USER to the user that runs NanoClaw}"
+
+if [[ "${1:-}" == "--snap" ]]; then
+  ssh "$USER@$HOST" bash -s <<'SNAP'
+    set -euo pipefail
+    echo "=== Service Status ==="
+    systemctl --user status nanoclaw --no-pager 2>/dev/null || echo "(service not found)"
+    echo
+    echo "=== Recent Logs ==="
+    journalctl --user -u nanoclaw --no-pager -n 30 2>/dev/null || echo "(no logs)"
+    echo
+    echo "=== Active Containers ==="
+    docker ps --filter name=nanoclaw- --format 'table {{.Names}}\t{{.Status}}\t{{.Command}}' 2>/dev/null || echo "(docker not available)"
+    echo
+    echo "=== Scheduled Tasks ==="
+    if command -v sqlite3 &>/dev/null && [ -f ~/nanoclaw/store/messages.db ]; then
+      sqlite3 ~/nanoclaw/store/messages.db "SELECT id, status, next_run FROM scheduled_tasks WHERE status='active' ORDER BY next_run LIMIT 10;"
+    else
+      echo "(sqlite3 not available or db not found)"
+    fi
+SNAP
+else
+  echo "Tailing NanoClaw logs on $HOST (Ctrl+C to stop)..."
+  ssh "$USER@$HOST" journalctl --user -u nanoclaw -f --no-pager
+fi
