@@ -22,6 +22,11 @@ jobs:
     runs-on: ubuntu-latest
     environment: gcp
     steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/deploy-remote.sh
+          sparse-checkout-cone-mode: false
+
       - name: Authenticate to GCP via WIF
         uses: google-github-actions/auth@v2
         with:
@@ -36,68 +41,24 @@ jobs:
           gcloud compute ssh ${{ vars.VM_INSTANCE_NAME }} \
             --zone=${{ vars.GCP_ZONE }} \
             --tunnel-through-iap \
-            --command='
-              set -e
-
-              # Run deploy commands as anton (bot user that owns nanoclaw)
-              sudo -u anton bash -lc "
-                cd ~/nanoclaw
-
-                # Stash local changes, pull, restore
-                git stash --include-untracked 2>/dev/null || true
-                git pull --rebase origin main
-                git stash pop 2>/dev/null || true
-
-                # Install deps and build
-                npm install
-                npm run build
-
-                # Rebuild container if Dockerfile changed
-                if git diff HEAD~1 --name-only | grep -q container/; then
-                  echo \"Container files changed, rebuilding...\"
-                  ./container/build.sh
-                fi
-              "
-
-              # Restart system service
-              sudo systemctl restart nanoclaw@anton
-              echo "Deploy complete"
-            '
+            --command="$(cat scripts/deploy-remote.sh)"
 
   deploy-oci:
     if: inputs.target == 'oci' || inputs.target == 'both'
     runs-on: ubuntu-latest
     environment: oci
     steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1
+      - uses: actions/checkout@v4
         with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER || 'ubuntu' }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script: |
-            set -e
+          sparse-checkout: scripts/deploy-remote.sh
+          sparse-checkout-cone-mode: false
 
-            # Run deploy commands as anton (bot user that owns nanoclaw)
-            sudo -u anton bash -lc "
-              cd ~/nanoclaw
-
-              # Stash local changes, pull, restore
-              git stash --include-untracked 2>/dev/null || true
-              git pull --rebase origin main
-              git stash pop 2>/dev/null || true
-
-              # Install deps and build
-              npm install
-              npm run build
-
-              # Rebuild container if Dockerfile changed
-              if git diff HEAD~1 --name-only | grep -q container/; then
-                echo \"Container files changed, rebuilding...\"
-                ./container/build.sh
-              fi
-            "
-
-            # Restart system service
-            sudo systemctl restart nanoclaw@anton
-            echo "Deploy complete"
+      - name: Deploy via SSH
+        run: |
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
+          ssh -o StrictHostKeyChecking=no \
+            -i /tmp/deploy_key \
+            ${{ secrets.DEPLOY_USER || 'ubuntu' }}@${{ secrets.DEPLOY_HOST }} \
+            "$(cat scripts/deploy-remote.sh)"
+          rm -f /tmp/deploy_key
