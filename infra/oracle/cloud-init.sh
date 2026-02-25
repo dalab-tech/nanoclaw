@@ -24,7 +24,7 @@ if command -v dnf &>/dev/null; then
   dnf install -y nodejs
 
   # --- Essential tools ---
-  dnf install -y git tmux htop unzip cron stress-ng
+  dnf install -y git tmux htop unzip cron stress-ng mc jq vim-minimal
 
   # --- Firewall (firewalld on Oracle Linux) ---
   firewall-cmd --permanent --add-service=ssh
@@ -54,7 +54,7 @@ else
   apt-get install -y nodejs
 
   # --- Essential tools ---
-  apt-get install -y git tmux htop unzip cron stress-ng
+  apt-get install -y git tmux htop unzip cron stress-ng mc jq vim-tiny
 
   # --- UFW firewall ---
   apt-get install -y ufw
