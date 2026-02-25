@@ -124,7 +124,7 @@ curl -fsSL https://claude.ai/install.sh | bash
 # anton: bot user for autonomous GitHub engineering tasks
 for NEW_USER in son anton; do
   useradd -m -s /bin/bash "$NEW_USER"
-  usermod -aG docker "$NEW_USER"
+  usermod -aG docker,systemd-journal "$NEW_USER"
   echo "$NEW_USER ALL=(ALL) NOPASSWD:ALL" > "/etc/sudoers.d/$NEW_USER"
   chmod 440 "/etc/sudoers.d/$NEW_USER"
   # Copy SSH authorized keys from default OS user

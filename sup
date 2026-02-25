@@ -1,18 +1,41 @@
 #!/usr/bin/env bash
 # sup — NanoClaw remote diagnostics
-# Usage: sup         Live log tail
-#        sup --snap  Quick status snapshot
+# Usage: sup [target]         Live log tail
+#        sup [target] --snap  Quick status snapshot
+#   target: gcp (default) | oci
 
 set -euo pipefail
 
-NANOCLAW_HOST=129.146.4.124
-NANOCLAW_USER=anton
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+TARGET="${1:-gcp}"
+[[ "$TARGET" == "--snap" ]] && { TARGET="gcp"; SNAP=true; } || SNAP=false
+[[ "${2:-}" == "--snap" ]] && SNAP=true
 
-HOST="${NANOCLAW_HOST:?Set NANOCLAW_HOST to the server IP/hostname}"
-USER="${NANOCLAW_USER:?Set NANOCLAW_USER to the user that runs NanoClaw}"
+USER="anton"
 
-if [[ "${1:-}" == "--snap" ]]; then
-  ssh "$USER@$HOST" bash -s <<'SNAP'
+# Build SSH command based on target
+case "$TARGET" in
+  gcp)
+    INSTANCE=$(cd "$SCRIPT_DIR/infra/gcp" && pulumi stack output instanceName 2>/dev/null)
+    ZONE=$(cd "$SCRIPT_DIR/infra/gcp" && pulumi config get nanoclaw:zone 2>/dev/null || echo "us-central1-a")
+    if [ -z "$INSTANCE" ]; then
+      echo "ERROR: could not resolve GCP instance name from Pulumi" >&2
+      exit 1
+    fi
+    run_remote() { gcloud compute ssh "$INSTANCE" --zone="$ZONE" --tunnel-through-iap -- "$@"; }
+    ;;
+  oci)
+    OCI_IP=$(cd "$SCRIPT_DIR/infra/oracle" && pulumi stack output publicIp 2>/dev/null || echo "129.146.4.124")
+    run_remote() { ssh "$USER@$OCI_IP" "$@"; }
+    ;;
+  *)
+    echo "Usage: sup [gcp|oci] [--snap]"
+    exit 1
+    ;;
+esac
+
+if $SNAP; then
+  run_remote bash -s <<'SNAP'
     set -euo pipefail
     echo "=== Service Status ==="
     systemctl --user status nanoclaw --no-pager 2>/dev/null || echo "(service not found)"
@@ -31,6 +54,6 @@ if [[ "${1:-}" == "--snap" ]]; then
     fi
 SNAP
 else
-  echo "Tailing NanoClaw logs on $HOST (Ctrl+C to stop)..."
-  ssh "$USER@$HOST" journalctl --user -u nanoclaw -f --no-pager
+  echo "Tailing NanoClaw logs on $TARGET (Ctrl+C to stop)..."
+  run_remote journalctl --user -u nanoclaw -f --no-pager
 fi
