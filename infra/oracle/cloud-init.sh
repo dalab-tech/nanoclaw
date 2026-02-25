@@ -26,6 +26,11 @@ if command -v dnf &>/dev/null; then
   # --- Essential tools ---
   dnf install -y git tmux htop unzip cron stress-ng mc jq vim-minimal
 
+  # --- GitHub CLI ---
+  dnf install -y 'dnf-command(config-manager)'
+  dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo
+  dnf install -y gh
+
   # --- Firewall (firewalld on Oracle Linux) ---
   firewall-cmd --permanent --add-service=ssh
   firewall-cmd --permanent --add-service=http
@@ -55,6 +60,14 @@ else
 
   # --- Essential tools ---
   apt-get install -y git tmux htop unzip cron stress-ng mc jq vim-tiny
+
+  # --- GitHub CLI ---
+  curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+    | dd of=/etc/apt/keyrings/githubcli-archive-keyring.gpg 2>/dev/null
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+    > /etc/apt/sources.list.d/github-cli.list
+  apt-get update
+  apt-get install -y gh
 
   # --- UFW firewall ---
   apt-get install -y ufw
@@ -153,6 +166,8 @@ for NEW_USER in son anton; do
   # Workspace
   mkdir -p "/home/$NEW_USER/workspace"
   chown "$NEW_USER:$NEW_USER" "/home/$NEW_USER/workspace"
+  # SSH key for GitHub
+  su - "$NEW_USER" -c "ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N '' -C '${NEW_USER}@nanoclaw'"
 done
 
 # --- Midnight Commander warm skin + config ---
@@ -304,7 +319,36 @@ for NEW_USER in son anton; do
   ln -sf "/home/$NEW_USER/nanoclaw/.env" "/home/$NEW_USER/.$NEW_USER/.env"
   ln -sf "/home/$NEW_USER/.config/nanoclaw/mount-allowlist.json" "/home/$NEW_USER/.$NEW_USER/mount-allowlist.json"
   chown -R "$NEW_USER:$NEW_USER" "/home/$NEW_USER/.$NEW_USER"
+  # Source GITHUB_TOKEN from nanoclaw .env so gh/git auth works automatically
+  cat >> "/home/$NEW_USER/.profile" << 'PROFILE'
+
+# Auto-export GITHUB_TOKEN from nanoclaw .env
+if [ -f ~/nanoclaw/.env ]; then
+  export GITHUB_TOKEN=$(grep -m1 '^GITHUB_TOKEN=' ~/nanoclaw/.env | cut -d= -f2-)
+fi
+PROFILE
 done
+
+# --- Nanoclaw systemd service template ---
+cat > /etc/systemd/system/nanoclaw@.service << 'UNIT'
+[Unit]
+Description=Nanoclaw (%i persona)
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=/home/%i/nanoclaw
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=5
+EnvironmentFile=/home/%i/nanoclaw/.env
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+systemctl daemon-reload
 
 # --- Anti-idle cron (prevents OCI free-tier reclamation) ---
 systemctl enable cron 2>/dev/null || true
