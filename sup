@@ -1,33 +1,74 @@
 #!/usr/bin/env bash
 # sup — NanoClaw remote diagnostics
-# Usage: sup         Live log tail
-#        sup --snap  Quick status snapshot
+# Usage: sup [gcp|oci] [--snap]
+#        sup --snap           Quick status snapshot (default: gcp)
+#        sup oci              Live log tail on OCI
+#        sup oci --snap       Quick status snapshot on OCI
 
 set -euo pipefail
 
-HOST="${NANOCLAW_HOST:?Set NANOCLAW_HOST to the server IP/hostname}"
-USER="${NANOCLAW_USER:-ubuntu}"
+# Parse arguments
+TARGET="gcp"
+MODE="tail"
 
-if [[ "${1:-}" == "--snap" ]]; then
-  ssh "$USER@$HOST" bash -s <<'SNAP'
-    set -euo pipefail
-    echo "=== Service Status ==="
-    systemctl --user status nanoclaw --no-pager 2>/dev/null || echo "(service not found)"
-    echo
-    echo "=== Recent Logs ==="
-    journalctl --user -u nanoclaw --no-pager -n 30 2>/dev/null || echo "(no logs)"
-    echo
-    echo "=== Active Containers ==="
-    docker ps --filter name=nanoclaw- --format 'table {{.Names}}\t{{.Status}}\t{{.Command}}' 2>/dev/null || echo "(docker not available)"
-    echo
-    echo "=== Scheduled Tasks ==="
-    if command -v sqlite3 &>/dev/null && [ -f ~/nanoclaw/store/messages.db ]; then
-      sqlite3 ~/nanoclaw/store/messages.db "SELECT id, status, next_run FROM scheduled_tasks WHERE status='active' ORDER BY next_run LIMIT 10;"
-    else
-      echo "(sqlite3 not available or db not found)"
-    fi
-SNAP
+for arg in "$@"; do
+  case "$arg" in
+    gcp|oci) TARGET="$arg" ;;
+    --snap)  MODE="snap" ;;
+    *)       echo "Usage: sup [gcp|oci] [--snap]"; exit 1 ;;
+  esac
+done
+
+# Service name differs by target: GCP uses system template, OCI uses user service
+if [[ "$TARGET" == "gcp" ]]; then
+  SVC_STATUS='sudo systemctl status nanoclaw@anton --no-pager'
+  SVC_LOGS='sudo journalctl -u nanoclaw@anton --no-pager -n 30'
+  SVC_TAIL='sudo journalctl -u nanoclaw@anton -f --no-pager'
 else
-  echo "Tailing NanoClaw logs on $HOST (Ctrl+C to stop)..."
-  ssh "$USER@$HOST" journalctl --user -u nanoclaw -f --no-pager
+  SVC_STATUS='systemctl --user status nanoclaw --no-pager'
+  SVC_LOGS='journalctl --user -u nanoclaw --no-pager -n 30'
+  SVC_TAIL='journalctl --user -u nanoclaw -f --no-pager'
+fi
+
+# Snapshot command (shared structure, service commands differ)
+SNAP_CMD="
+  set -euo pipefail
+  echo '=== Service Status ==='
+  $SVC_STATUS 2>/dev/null || echo '(service not found)'
+  echo
+  echo '=== Recent Logs ==='
+  $SVC_LOGS 2>/dev/null || echo '(no logs)'
+  echo
+  echo '=== Active Containers ==='
+  docker ps --filter name=nanoclaw- --format 'table {{.Names}}\t{{.Status}}\t{{.Command}}' 2>/dev/null || echo '(docker not available)'
+  echo
+  echo '=== Scheduled Tasks ==='
+  if command -v sqlite3 &>/dev/null && [ -f ~/nanoclaw/store/messages.db ]; then
+    sqlite3 ~/nanoclaw/store/messages.db \"SELECT id, status, next_run FROM scheduled_tasks WHERE status='active' ORDER BY next_run LIMIT 10;\"
+  else
+    echo '(sqlite3 not available or db not found)'
+  fi
+"
+
+if [[ "$TARGET" == "gcp" ]]; then
+  GCP_ZONE="${NANOCLAW_GCP_ZONE:?Set NANOCLAW_GCP_ZONE (e.g. us-central1-a)}"
+  GCP_VM="${NANOCLAW_GCP_VM:?Set NANOCLAW_GCP_VM (e.g. nanoclaw-vm)}"
+
+  if [[ "$MODE" == "snap" ]]; then
+    gcloud compute ssh "$GCP_VM" --zone="$GCP_ZONE" --tunnel-through-iap --command="$SNAP_CMD"
+  else
+    echo "Tailing NanoClaw logs on GCP $GCP_VM (Ctrl+C to stop)..."
+    gcloud compute ssh "$GCP_VM" --zone="$GCP_ZONE" --tunnel-through-iap --command="$SVC_TAIL"
+  fi
+
+elif [[ "$TARGET" == "oci" ]]; then
+  HOST="${NANOCLAW_HOST:?Set NANOCLAW_HOST to the server IP/hostname}"
+  USER="${NANOCLAW_USER:-ubuntu}"
+
+  if [[ "$MODE" == "snap" ]]; then
+    ssh "$USER@$HOST" bash -s <<< "$SNAP_CMD"
+  else
+    echo "Tailing NanoClaw logs on OCI $HOST (Ctrl+C to stop)..."
+    ssh "$USER@$HOST" $SVC_TAIL
+  fi
 fi

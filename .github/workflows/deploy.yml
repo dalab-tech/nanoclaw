@@ -1,15 +1,73 @@
-# Deploy NanoClaw to a remote server via SSH.
-# Disabled by default — runs only via manual workflow_dispatch.
-# To enable on push to main, uncomment the push trigger below.
 name: Deploy
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
-  # push:
-  #   branches: [main]
+    inputs:
+      target:
+        description: Deploy target
+        type: choice
+        options:
+          - gcp
+          - oci
+          - both
+        default: gcp
+
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
-  deploy:
+  deploy-gcp:
+    if: github.event_name == 'push' || inputs.target == 'gcp' || inputs.target == 'both'
+    runs-on: ubuntu-latest
+    environment: gcp
+    steps:
+      - name: Authenticate to GCP via WIF
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.CICD_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy via IAP tunnel
+        run: |
+          gcloud compute ssh ${{ vars.VM_INSTANCE_NAME }} \
+            --zone=${{ vars.GCP_ZONE }} \
+            --tunnel-through-iap \
+            --command='
+              set -e
+
+              # Run deploy commands as anton (bot user that owns nanoclaw)
+              sudo -u anton bash -lc "
+                cd ~/nanoclaw
+
+                # Stash local changes, pull, restore
+                git stash --include-untracked 2>/dev/null || true
+                git pull --rebase origin main
+                git stash pop 2>/dev/null || true
+
+                # Install deps and build
+                npm install
+                npm run build
+
+                # Rebuild container if Dockerfile changed
+                if git diff HEAD~1 --name-only | grep -q container/; then
+                  echo \"Container files changed, rebuilding...\"
+                  ./container/build.sh
+                fi
+              "
+
+              # Restart system service
+              sudo systemctl restart nanoclaw@anton
+              echo "Deploy complete"
+            '
+
+  deploy-oci:
+    if: inputs.target == 'oci' || inputs.target == 'both'
     runs-on: ubuntu-latest
     steps:
       - name: Deploy via SSH

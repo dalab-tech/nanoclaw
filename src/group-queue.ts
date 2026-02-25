@@ -92,6 +92,10 @@ export class GroupQueue {
     for (const [k, s] of this.groups) {
       if (GroupQueue.chatJidFromKey(k) === groupJid && s.active) {
         state.pendingMessages = true;
+        // Preempt idle containers so this message gets processed sooner
+        if (s.idleWaiting) {
+          this.closeStdinForKey(k);
+        }
         logger.debug({ groupJid, threadTs }, 'Sibling thread active, message queued');
         return;
       }

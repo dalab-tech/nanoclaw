@@ -513,23 +513,44 @@ async function startMessageLoop(): Promise<void> {
  */
 function recoverPendingMessages(): void {
   for (const [chatJid, group] of Object.entries(registeredGroups)) {
-    // Check for WIP file from interrupted run
+    // Check for WIP file from interrupted run (base group)
     try {
       const groupDir = resolveGroupFolderPath(group.folder);
       const wipPath = path.join(groupDir, 'wip.md');
       if (fs.existsSync(wipPath)) {
         logger.info({ group: group.name }, 'Recovery: found WIP file from interrupted run');
         queue.enqueueMessageCheck(chatJid);
-        continue;
       }
     } catch {
       // ignore
     }
 
+    // Check for WIP files in thread folders ({group.folder}-t-*)
+    try {
+      const groupDir = resolveGroupFolderPath(group.folder);
+      const parentDir = path.dirname(groupDir);
+      const threadPrefix = `${group.folder}-t-`;
+      const entries = fs.readdirSync(parentDir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.isDirectory() && entry.name.startsWith(threadPrefix)) {
+          const threadWip = path.join(parentDir, entry.name, 'wip.md');
+          if (fs.existsSync(threadWip)) {
+            // Extract threadTs from folder name: {folder}-t-{sanitizedTs}
+            const sanitizedTs = entry.name.slice(threadPrefix.length);
+            const threadTs = sanitizedTs.replace(/-/g, '.');
+            logger.info({ group: group.name, threadTs }, 'Recovery: found thread WIP file');
+            queue.enqueueMessageCheck(chatJid, threadTs);
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    // Check for unprocessed messages, grouped by thread
     const sinceTimestamp = lastAgentTimestamp[chatJid] || '';
     const pending = getMessagesSince(chatJid, sinceTimestamp, ASSISTANT_NAME);
     if (pending.length > 0) {
-      // Group pending messages by thread to recover each thread separately
       const threadKeys = new Set<string | undefined>();
       for (const msg of pending) {
         threadKeys.add(msg.thread_ts ?? undefined);
@@ -602,8 +623,9 @@ async function main(): Promise<void> {
       setRouterState('restart_notified_jids', JSON.stringify(notifiedJids));
     }
 
-    await queue.shutdown(10000);
+    // Disconnect channels first to stop accepting new messages during shutdown
     for (const ch of channels) await ch.disconnect();
+    await queue.shutdown(10000);
     process.exit(0);
   };
   process.on('SIGTERM', () => shutdown('SIGTERM'));
@@ -611,7 +633,18 @@ async function main(): Promise<void> {
 
   // Channel callbacks (shared by all channels)
   const channelOpts = {
-    onMessage: (_chatJid: string, msg: NewMessage) => storeMessage(msg),
+    onMessage: (_chatJid: string, msg: NewMessage) => {
+      try {
+        storeMessage(msg);
+      } catch (err) {
+        logger.warn({ err, chatJid: msg.chat_jid }, 'storeMessage failed, retrying once');
+        try {
+          storeMessage(msg);
+        } catch (retryErr) {
+          logger.error({ err: retryErr, chatJid: msg.chat_jid }, 'storeMessage retry failed, message lost');
+        }
+      }
+    },
     onChatMetadata: (chatJid: string, timestamp: string, name?: string, channel?: string, isGroup?: boolean) =>
       storeChatMetadata(chatJid, timestamp, name, channel, isGroup),
     registeredGroups: () => registeredGroups,
@@ -714,6 +747,25 @@ async function main(): Promise<void> {
   });
   queue.setProcessMessagesFn(processGroupMessages);
   recoverPendingMessages();
+
+  // Safety-net sweep: check for unprocessed messages every 30s
+  // Catches race conditions where the polling loop missed a message
+  setInterval(() => {
+    for (const [chatJid, group] of Object.entries(registeredGroups)) {
+      const cKey = cursorKey(chatJid);
+      const pending = getMessagesSince(chatJid, lastAgentTimestamp[cKey] || '', ASSISTANT_NAME, null);
+      if (pending.length > 0) {
+        const isMainGroup = group.folder === MAIN_GROUP_FOLDER;
+        const needsTrigger = !isMainGroup && group.requiresTrigger !== false;
+        const hasTrigger = !needsTrigger || pending.some((m) => TRIGGER_PATTERN.test(m.content.trim()));
+        if (hasTrigger) {
+          logger.info({ group: group.name, count: pending.length }, 'Sweep: found unprocessed messages');
+          queue.enqueueMessageCheck(chatJid);
+        }
+      }
+    }
+  }, 30000);
+
   startMessageLoop().catch((err) => {
     logger.fatal({ err }, 'Message loop crashed unexpectedly');
     process.exit(1);
