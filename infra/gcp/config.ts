@@ -16,8 +16,8 @@ export const diskType = nanoclawConfig.get("diskType") || "pd-standard";
 
 // GitHub config
 export const githubToken = nanoclawConfig.requireSecret("githubToken");
-export const githubOwner = nanoclawConfig.require("githubOwner");
-export const githubRepo = nanoclawConfig.require("githubRepo");
-export const gitUserName = nanoclawConfig.require("gitUserName");
-export const gitUserEmail = nanoclawConfig.require("gitUserEmail");
+export const githubOwner = nanoclawConfig.get("githubOwner") || "dalab-tech";
+export const githubRepo = nanoclawConfig.get("githubRepo") || "nanoclaw";
+export const gitUserName = nanoclawConfig.get("gitUserName") || "Anton";
+export const gitUserEmail = nanoclawConfig.get("gitUserEmail") || "anton@dalab.tech";
 export const deployUser = nanoclawConfig.get("deployUser") || "anton";

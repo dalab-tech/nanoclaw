@@ -20,10 +20,10 @@ export const compartmentId = ociConfig.require("tenancyOcid");
 // =============================================================================
 
 export const githubToken = nanoclawConfig.requireSecret("githubToken");
-export const githubOwner = nanoclawConfig.require("githubOwner"); // e.g. "dalab-tech"
-export const githubRepo = nanoclawConfig.require("githubRepo"); // e.g. "nanoclaw"
-export const gitUserName = nanoclawConfig.require("gitUserName");
-export const gitUserEmail = nanoclawConfig.require("gitUserEmail");
+export const githubOwner = nanoclawConfig.get("githubOwner") || "dalab-tech";
+export const githubRepo = nanoclawConfig.get("githubRepo") || "nanoclaw";
+export const gitUserName = nanoclawConfig.get("gitUserName") || "Anton";
+export const gitUserEmail = nanoclawConfig.get("gitUserEmail") || "anton@dalab.tech";
 
 // Auto-discover first availability domain via API
 export const availabilityDomain = oci.identity
