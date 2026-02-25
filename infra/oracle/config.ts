@@ -26,6 +26,7 @@ export const githubOwner = nanoclawConfig.get("githubOwner") || "dalab-tech";
 export const githubRepo = nanoclawConfig.get("githubRepo") || "nanoclaw";
 export const gitUserName = nanoclawConfig.get("gitUserName") || "Anton";
 export const gitUserEmail = nanoclawConfig.get("gitUserEmail") || "anton@dalab.tech";
+export const deployUser = nanoclawConfig.get("deployUser") || "anton";
 
 // Auto-discover first availability domain via API
 export const availabilityDomain = oci.identity

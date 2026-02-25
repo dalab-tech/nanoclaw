@@ -13,6 +13,7 @@ import {
   ocpus,
   memoryInGbs,
   bootVolumeSizeInGbs,
+  deployUser,
   githubOwner,
   githubRepo,
   gitUserName,
@@ -56,28 +57,27 @@ const userData = pulumi
   .apply(([privKey, userName, userEmail]) => {
     const repoUrl = `git@github.com:${githubOwner}/${githubRepo}.git`;
 
-    // Deploy key and git config go to 'anton' user (bot persona that runs nanoclaw)
     const deployKeySection = `
-# Written by Pulumi — deploy key for GitHub (anton user)
-mkdir -p /home/anton/.ssh
-cat > /home/anton/.ssh/github_deploy_key << 'DEPLOY_KEY'
+# Written by Pulumi — deploy key for GitHub (${deployUser} user)
+mkdir -p /home/${deployUser}/.ssh
+cat > /home/${deployUser}/.ssh/github_deploy_key << 'DEPLOY_KEY'
 ${privKey.trim()}
 DEPLOY_KEY
-chmod 600 /home/anton/.ssh/github_deploy_key
-chown anton:anton /home/anton/.ssh/github_deploy_key
+chmod 600 /home/${deployUser}/.ssh/github_deploy_key
+chown ${deployUser}:${deployUser} /home/${deployUser}/.ssh/github_deploy_key
 
-cat > /home/anton/.ssh/config << 'SSHCONFIG'
+cat > /home/${deployUser}/.ssh/config << 'SSHCONFIG'
 Host github.com
   IdentityFile ~/.ssh/github_deploy_key
   IdentitiesOnly yes
   StrictHostKeyChecking accept-new
 SSHCONFIG
-chmod 600 /home/anton/.ssh/config
-chown anton:anton /home/anton/.ssh/config
+chmod 600 /home/${deployUser}/.ssh/config
+chown ${deployUser}:${deployUser} /home/${deployUser}/.ssh/config
 
-su - anton -c "git clone ${repoUrl} /home/anton/workspace/nanoclaw" || true
-su - anton -c "git config --global user.name '${userName}'"
-su - anton -c "git config --global user.email '${userEmail}'"
+su - ${deployUser} -c "git clone ${repoUrl} /home/${deployUser}/${githubRepo}" || true
+su - ${deployUser} -c "git config --global user.name '${userName}'"
+su - ${deployUser} -c "git config --global user.email '${userEmail}'"
 `;
 
     const fullScript = baseCloudInit + deployKeySection;
