@@ -199,7 +199,9 @@ async function processGroupMessages(chatJid: string, threadTs?: string): Promise
   }
 
   const sinceTimestamp = lastAgentTimestamp[cKey] || '';
-  const missedMessages = getMessagesSince(chatJid, sinceTimestamp, ASSISTANT_NAME, threadTs);
+  // Pass null (not undefined) when no threadTs to filter to top-level messages only.
+  // undefined means "no filter" which would include thread messages in top-level processing.
+  const missedMessages = getMessagesSince(chatJid, sinceTimestamp, ASSISTANT_NAME, threadTs ?? null);
 
   if (missedMessages.length === 0 && !wipContent) return true;
 
@@ -475,7 +477,7 @@ async function startMessageLoop(): Promise<void> {
             chatJid,
             lastAgentTimestamp[cKey] || '',
             ASSISTANT_NAME,
-            threadTs,
+            threadTs ?? null,
           );
           const messagesToSend =
             allPending.length > 0 ? allPending : groupMessages;
@@ -527,11 +529,19 @@ function recoverPendingMessages(): void {
     const sinceTimestamp = lastAgentTimestamp[chatJid] || '';
     const pending = getMessagesSince(chatJid, sinceTimestamp, ASSISTANT_NAME);
     if (pending.length > 0) {
-      logger.info(
-        { group: group.name, pendingCount: pending.length },
-        'Recovery: found unprocessed messages',
-      );
-      queue.enqueueMessageCheck(chatJid);
+      // Group pending messages by thread to recover each thread separately
+      const threadKeys = new Set<string | undefined>();
+      for (const msg of pending) {
+        threadKeys.add(msg.thread_ts ?? undefined);
+      }
+
+      for (const threadTs of threadKeys) {
+        logger.info(
+          { group: group.name, threadTs, pendingCount: pending.filter((m) => (m.thread_ts ?? undefined) === threadTs).length },
+          'Recovery: found unprocessed messages',
+        );
+        queue.enqueueMessageCheck(chatJid, threadTs);
+      }
     }
   }
 }

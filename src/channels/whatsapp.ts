@@ -33,6 +33,7 @@ export class WhatsAppChannel implements Channel {
 
   private sock!: WASocket;
   private connected = false;
+  private shuttingDown = false;
   private lidToPhoneMap: Record<string, string> = {};
   private outgoingQueue: Array<{ jid: string; text: string }> = [];
   private flushing = false;
@@ -90,11 +91,12 @@ export class WhatsAppChannel implements Channel {
         const shouldReconnect = reason !== DisconnectReason.loggedOut;
         logger.info({ reason, shouldReconnect, queuedMessages: this.outgoingQueue.length }, 'Connection closed');
 
-        if (shouldReconnect) {
+        if (shouldReconnect && !this.shuttingDown) {
           logger.info('Reconnecting...');
           this.connectInternal().catch((err) => {
             logger.error({ err }, 'Failed to reconnect, retrying in 5s');
             setTimeout(() => {
+              if (this.shuttingDown) return;
               this.connectInternal().catch((err2) => {
                 logger.error({ err: err2 }, 'Reconnection retry failed');
               });
@@ -242,8 +244,11 @@ export class WhatsAppChannel implements Channel {
   }
 
   async disconnect(): Promise<void> {
+    this.shuttingDown = true;
     this.connected = false;
     this.sock?.end(undefined);
+    // Give WhatsApp server time to clean up the session
+    await new Promise((resolve) => setTimeout(resolve, 2000));
   }
 
   async setTyping(jid: string, isTyping: boolean): Promise<void> {
