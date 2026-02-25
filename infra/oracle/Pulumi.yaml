@@ -1,4 +1,4 @@
-name: anton
+name: anton-oci
 runtime:
   name: nodejs
   options:
