@@ -11,6 +11,8 @@ on:
           - oci
           - both
         default: gcp
+  repository_dispatch:
+    types: [nanoclaw-updated]
 
 permissions:
   id-token: write
@@ -18,7 +20,9 @@ permissions:
 
 jobs:
   deploy-gcp:
-    if: inputs.target == 'gcp' || inputs.target == 'both'
+    if: >-
+      github.event_name == 'repository_dispatch' ||
+      inputs.target == 'gcp' || inputs.target == 'both'
     runs-on: ubuntu-latest
     environment: gcp
     steps:
@@ -44,7 +48,9 @@ jobs:
             --command="$(cat scripts/deploy-remote.sh)"
 
   deploy-oci:
-    if: inputs.target == 'oci' || inputs.target == 'both'
+    if: >-
+      github.event_name == 'repository_dispatch' ||
+      inputs.target == 'oci' || inputs.target == 'both'
     runs-on: ubuntu-latest
     environment: oci
     steps:
