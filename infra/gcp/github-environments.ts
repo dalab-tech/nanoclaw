@@ -34,6 +34,6 @@ const envVar = (slug: string, variableName: string, value: string | pulumi.Outpu
 
 envVar("project-id", "GCP_PROJECT_ID", projectId);
 envVar("zone", "GCP_ZONE", zone);
-envVar("wip", "WORKLOAD_IDENTITY_PROVIDER", workloadIdentityProvider.name);
-envVar("cicd-sa", "CICD_SERVICE_ACCOUNT", cicdSa.email);
-envVar("vm-instance", "VM_INSTANCE_NAME", instance.name);
+envVar("wip", "GCP_WORKLOAD_IDENTITY_PROVIDER", workloadIdentityProvider.name);
+envVar("cicd-sa", "GCP_CICD_SERVICE_ACCOUNT", cicdSa.email);
+envVar("vm-instance", "GCP_VM_INSTANCE_NAME", instance.name);

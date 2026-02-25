@@ -20,7 +20,7 @@ import {
   gitUserEmail,
 } from "./config";
 import { subnet } from "./network";
-import { privateKeyOpenssh } from "./github";
+import { privateKeyOpenssh, cicdPublicKeyOpenssh } from "./github";
 
 // Image lookup — Oracle Linux for micro (guaranteed free-tier compatible), Ubuntu for ARM
 const imageOs = isFlexShape ? "Canonical Ubuntu" : "Oracle Linux";
@@ -53,8 +53,8 @@ const baseCloudInit = fs.readFileSync(
 );
 
 const userData = pulumi
-  .all([privateKeyOpenssh, gitUserName, gitUserEmail])
-  .apply(([privKey, userName, userEmail]) => {
+  .all([privateKeyOpenssh, cicdPublicKeyOpenssh, gitUserName, gitUserEmail])
+  .apply(([privKey, cicdPubKey, userName, userEmail]) => {
     const repoUrl = `git@github.com:${githubOwner}/${githubRepo}.git`;
 
     const deployKeySection = `
@@ -65,6 +65,11 @@ ${privKey.trim()}
 DEPLOY_KEY
 chmod 600 /home/${deployUser}/.ssh/github_deploy_key
 chown ${deployUser}:${deployUser} /home/${deployUser}/.ssh/github_deploy_key
+
+# Written by Pulumi — CI/CD public key for GitHub Actions SSH access
+echo '${cicdPubKey.trim()}' >> /home/${deployUser}/.ssh/authorized_keys
+chown ${deployUser}:${deployUser} /home/${deployUser}/.ssh/authorized_keys
+chmod 600 /home/${deployUser}/.ssh/authorized_keys
 
 cat > /home/${deployUser}/.ssh/config << 'SSHCONFIG'
 Host github.com

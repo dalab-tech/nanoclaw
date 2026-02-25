@@ -34,15 +34,15 @@ jobs:
       - name: Authenticate to GCP via WIF
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.CICD_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_CICD_SERVICE_ACCOUNT }}
 
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Deploy via IAP tunnel
         run: |
-          gcloud compute ssh ${{ vars.VM_INSTANCE_NAME }} \
+          gcloud compute ssh ${{ vars.GCP_VM_INSTANCE_NAME }} \
             --zone=${{ vars.GCP_ZONE }} \
             --tunnel-through-iap \
             --command="$(cat scripts/deploy-remote.sh)"
@@ -61,10 +61,10 @@ jobs:
 
       - name: Deploy via SSH
         run: |
-          echo "${{ secrets.DEPLOY_SSH_KEY }}" > /tmp/deploy_key
+          echo "${{ secrets.OCI_DEPLOY_SSH_KEY }}" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
           ssh -o StrictHostKeyChecking=no \
             -i /tmp/deploy_key \
-            ${{ secrets.DEPLOY_USER || 'ubuntu' }}@${{ secrets.DEPLOY_HOST }} \
+            ${{ vars.OCI_DEPLOY_USER }}@${{ vars.OCI_DEPLOY_HOST }} \
             "$(cat scripts/deploy-remote.sh)"
           rm -f /tmp/deploy_key

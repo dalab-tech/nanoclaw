@@ -2,6 +2,9 @@ import { availabilityDomain, shape } from "./config";
 import { resolvedImageId, instance } from "./compute";
 import { publicKeyOpenssh, deployKeyId } from "./github";
 
+// Force side-effects: GitHub environment variables are created on import
+import "./github-environments";
+
 // Debug — check these if instance creation fails
 export const debug = {
   availabilityDomain,
