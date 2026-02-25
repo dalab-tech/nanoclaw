@@ -14,7 +14,8 @@ export const machineType = nanoclawConfig.get("machineType") || "e2-micro";
 export const diskSizeGb = parseInt(nanoclawConfig.get("diskSizeGb") || "20", 10);
 export const diskType = nanoclawConfig.get("diskType") || "pd-standard";
 
-// GitHub config
+// GitHub config — githubToken is the 'anton-dalab-pat' fine-grained PAT
+// from the anton-dalab GitHub account (needs repo access to nanoclaw + anton)
 export const githubToken = nanoclawConfig.requireSecret("githubToken");
 export const githubOwner = nanoclawConfig.get("githubOwner") || "dalab-tech";
 export const githubRepo = nanoclawConfig.get("githubRepo") || "nanoclaw";

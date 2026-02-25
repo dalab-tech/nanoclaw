@@ -1,6 +1,6 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as github from "@pulumi/github";
-import { githubRepo, projectId, zone } from "./config";
+import { projectId, zone } from "./config";
 import { cicdSa } from "./service-accounts";
 import { workloadIdentityProvider } from "./workload-identity";
 import { instance } from "./compute";
@@ -10,8 +10,11 @@ import { githubProvider } from "./github";
 // GitHub Environment & Variables for GCP deploy
 // =============================================================================
 
+// Environments live in the anton repo (where the deploy workflow is)
+const workflowRepo = "anton";
+
 const ghEnv = new github.RepositoryEnvironment("gcp-env", {
-  repository: githubRepo,
+  repository: workflowRepo,
   environment: "gcp",
 }, { provider: githubProvider });
 
@@ -21,7 +24,7 @@ const envVar = (slug: string, variableName: string, value: string | pulumi.Outpu
   new github.ActionsEnvironmentVariable(
     `gh-gcp-${slug}`,
     {
-      repository: githubRepo,
+      repository: workflowRepo,
       environment: "gcp",
       variableName,
       value,

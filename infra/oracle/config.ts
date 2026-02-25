@@ -19,6 +19,8 @@ export const compartmentId = ociConfig.require("tenancyOcid");
 // GitHub deploy key + git config for the cloud instance
 // =============================================================================
 
+// githubToken is the 'anton-dalab-pat' fine-grained PAT
+// from the anton-dalab GitHub account (needs repo access to nanoclaw + anton)
 export const githubToken = nanoclawConfig.requireSecret("githubToken");
 export const githubOwner = nanoclawConfig.get("githubOwner") || "dalab-tech";
 export const githubRepo = nanoclawConfig.get("githubRepo") || "nanoclaw";

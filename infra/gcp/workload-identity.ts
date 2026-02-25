@@ -1,13 +1,15 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as gcp from "@pulumi/gcp";
-import { projectId, githubOwner, githubRepo } from "./config";
+import { projectId, githubOwner } from "./config";
 import { cicdSa } from "./service-accounts";
 
 // =============================================================================
 // Workload Identity Federation for GitHub Actions (OIDC)
 // =============================================================================
 
-const fullRepo = `${githubOwner}/${githubRepo}`;
+// The deploy workflow lives in the anton repo, not nanoclaw
+const workflowRepo = "anton";
+const fullRepo = `${githubOwner}/${workflowRepo}`;
 
 const workloadIdentityPool = new gcp.iam.WorkloadIdentityPool("github-pool", {
   project: projectId,
