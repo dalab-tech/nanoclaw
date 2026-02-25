@@ -67,6 +67,7 @@ jobs:
   deploy-oci:
     if: inputs.target == 'oci' || inputs.target == 'both'
     runs-on: ubuntu-latest
+    environment: oci
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
@@ -76,23 +77,27 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
             set -e
-            cd ${{ secrets.DEPLOY_PATH || '~/nanoclaw' }}
 
-            # Stash local changes, pull, restore
-            git stash --include-untracked 2>/dev/null || true
-            git pull --rebase origin main
-            git stash pop 2>/dev/null || true
+            # Run deploy commands as anton (bot user that owns nanoclaw)
+            sudo -u anton bash -lc "
+              cd ~/nanoclaw
 
-            # Install deps and build
-            npm install
-            npm run build
+              # Stash local changes, pull, restore
+              git stash --include-untracked 2>/dev/null || true
+              git pull --rebase origin main
+              git stash pop 2>/dev/null || true
 
-            # Rebuild container if Dockerfile changed
-            if git diff HEAD~1 --name-only | grep -q 'container/'; then
-              echo "Container files changed, rebuilding..."
-              ./container/build.sh
-            fi
+              # Install deps and build
+              npm install
+              npm run build
 
-            # Restart service
-            systemctl --user restart nanoclaw
+              # Rebuild container if Dockerfile changed
+              if git diff HEAD~1 --name-only | grep -q container/; then
+                echo \"Container files changed, rebuilding...\"
+                ./container/build.sh
+              fi
+            "
+
+            # Restart system service
+            sudo systemctl restart nanoclaw@anton
             echo "Deploy complete"

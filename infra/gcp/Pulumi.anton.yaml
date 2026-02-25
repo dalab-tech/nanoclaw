@@ -6,7 +6,7 @@ config:
   nanoclaw:machineType: e2-standard-2
   nanoclaw:diskSizeGb: "50"
   nanoclaw:githubOwner: dalab-tech
-  nanoclaw:githubRepo: anton
+  nanoclaw:githubRepo: nanoclaw
   nanoclaw:gitUserName: Anton
   nanoclaw:gitUserEmail: anton@datech.lab
   nanoclaw:deployUser: anton
