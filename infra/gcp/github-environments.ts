@@ -5,6 +5,7 @@ import { cicdSa } from "./service-accounts";
 import { workloadIdentityProvider } from "./workload-identity";
 import { instance } from "./compute";
 import { githubProvider } from "./github";
+import { dotenvContent } from "./dotenv";
 
 // =============================================================================
 // GitHub Environment & Variables for GCP deploy
@@ -37,3 +38,17 @@ envVar("zone", "GCP_ZONE", zone);
 envVar("wip", "GCP_WORKLOAD_IDENTITY_PROVIDER", workloadIdentityProvider.name);
 envVar("cicd-sa", "GCP_CICD_SERVICE_ACCOUNT", cicdSa.email);
 envVar("vm-instance", "GCP_VM_INSTANCE_NAME", instance.name);
+
+const envSecret = (slug: string, secretName: string, plaintextValue: pulumi.Output<string>) =>
+  new github.ActionsEnvironmentSecret(
+    `gh-gcp-${slug}`,
+    {
+      repository: workflowRepo,
+      environment: "gcp",
+      secretName,
+      plaintextValue,
+    },
+    opts
+  );
+
+envSecret("dotenv", "NANOCLAW_DOTENV", dotenvContent);

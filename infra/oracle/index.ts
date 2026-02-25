@@ -1,6 +1,6 @@
 import { availabilityDomain, shape } from "./config";
 import { resolvedImageId, instance } from "./compute";
-import { publicKeyOpenssh, deployKeyId } from "./github";
+import { publicKeyOpenssh, deployKeyId, cicdPublicKeyOpenssh } from "./github";
 
 // Force side-effects: GitHub environment variables are created on import
 import "./github-environments";
@@ -26,3 +26,6 @@ export const sshCommand = instance.publicIp.apply(
 // GitHub deploy key (public half — for reference)
 export const deployKeyPublic = publicKeyOpenssh;
 export const githubDeployKeyId = deployKeyId;
+
+// CI/CD public key — add to anton's authorized_keys on the running instance
+export const cicdPublicKey = cicdPublicKeyOpenssh;

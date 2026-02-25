@@ -20,7 +20,8 @@ import {
   gitUserEmail,
 } from "./config";
 import { subnet } from "./network";
-import { privateKeyOpenssh, cicdPublicKeyOpenssh } from "./github";
+import { privateKeyOpenssh } from "./github";
+import { dotenvContent } from "./dotenv";
 
 // Image lookup — Oracle Linux for micro (guaranteed free-tier compatible), Ubuntu for ARM
 const imageOs = isFlexShape ? "Canonical Ubuntu" : "Oracle Linux";
@@ -53,8 +54,8 @@ const baseCloudInit = fs.readFileSync(
 );
 
 const userData = pulumi
-  .all([privateKeyOpenssh, cicdPublicKeyOpenssh, gitUserName, gitUserEmail])
-  .apply(([privKey, cicdPubKey, userName, userEmail]) => {
+  .all([privateKeyOpenssh, gitUserName, gitUserEmail, dotenvContent])
+  .apply(([privKey, userName, userEmail, dotenv]) => {
     const repoUrl = `git@github.com:${githubOwner}/${githubRepo}.git`;
 
     const deployKeySection = `
@@ -65,11 +66,6 @@ ${privKey.trim()}
 DEPLOY_KEY
 chmod 600 /home/${deployUser}/.ssh/github_deploy_key
 chown ${deployUser}:${deployUser} /home/${deployUser}/.ssh/github_deploy_key
-
-# Written by Pulumi — CI/CD public key for GitHub Actions SSH access
-echo '${cicdPubKey.trim()}' >> /home/${deployUser}/.ssh/authorized_keys
-chown ${deployUser}:${deployUser} /home/${deployUser}/.ssh/authorized_keys
-chmod 600 /home/${deployUser}/.ssh/authorized_keys
 
 cat > /home/${deployUser}/.ssh/config << 'SSHCONFIG'
 Host github.com
@@ -83,6 +79,12 @@ chown ${deployUser}:${deployUser} /home/${deployUser}/.ssh/config
 su - ${deployUser} -c "git clone ${repoUrl} /home/${deployUser}/${githubRepo}" || true
 su - ${deployUser} -c "git config --global user.name '${userName}'"
 su - ${deployUser} -c "git config --global user.email '${userEmail}'"
+
+# Written by Pulumi — nanoclaw app secrets
+cat > /home/${deployUser}/${githubRepo}/.env << 'DOTENV'
+${dotenv}DOTENV
+chmod 600 /home/${deployUser}/${githubRepo}/.env
+chown ${deployUser}:${deployUser} /home/${deployUser}/${githubRepo}/.env
 `;
 
     const fullScript = baseCloudInit + deployKeySection;

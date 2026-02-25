@@ -18,6 +18,7 @@ import { subnet } from "./network";
 import { vmSa, cicdSa } from "./service-accounts";
 import { enabledApis } from "./apis";
 import { privateKeyOpenssh } from "./github";
+import { dotenvContent } from "./dotenv";
 
 // Cloud-init script — base script + git config section appended by Pulumi
 const baseCloudInit = fs.readFileSync(
@@ -26,8 +27,8 @@ const baseCloudInit = fs.readFileSync(
 );
 
 const userData = pulumi
-  .all([privateKeyOpenssh, gitUserName, gitUserEmail])
-  .apply(([privKey, userName, userEmail]) => {
+  .all([privateKeyOpenssh, gitUserName, gitUserEmail, dotenvContent])
+  .apply(([privKey, userName, userEmail, dotenv]) => {
     const repoUrl = `git@github.com:${githubOwner}/${githubRepo}.git`;
 
     const gitSection = `
@@ -51,6 +52,12 @@ chown ${deployUser}:${deployUser} /home/${deployUser}/.ssh/config
 su - ${deployUser} -c "git clone ${repoUrl} /home/${deployUser}/${githubRepo}" || true
 su - ${deployUser} -c "git config --global user.name '${userName}'"
 su - ${deployUser} -c "git config --global user.email '${userEmail}'"
+
+# Written by Pulumi — nanoclaw app secrets
+cat > /home/${deployUser}/${githubRepo}/.env << 'DOTENV'
+${dotenv}DOTENV
+chmod 600 /home/${deployUser}/${githubRepo}/.env
+chown ${deployUser}:${deployUser} /home/${deployUser}/${githubRepo}/.env
 `;
 
     return baseCloudInit + gitSection;

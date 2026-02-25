@@ -3,6 +3,7 @@ import * as github from "@pulumi/github";
 import { deployUser } from "./config";
 import { githubProvider, cicdPrivateKeyOpenssh } from "./github";
 import { instance } from "./compute";
+import { dotenvContent } from "./dotenv";
 
 // =============================================================================
 // GitHub Environment & Variables for OCI deploy
@@ -45,3 +46,5 @@ envVar("deploy-host", "OCI_DEPLOY_HOST", instance.publicIp);
 envVar("deploy-user", "OCI_DEPLOY_USER", deployUser);
 
 envSecret("deploy-ssh-key", "OCI_DEPLOY_SSH_KEY", cicdPrivateKeyOpenssh);
+
+envSecret("dotenv", "NANOCLAW_DOTENV", dotenvContent);

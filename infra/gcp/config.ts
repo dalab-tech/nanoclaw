@@ -22,3 +22,12 @@ export const githubRepo = nanoclawConfig.get("githubRepo") || "nanoclaw";
 export const gitUserName = nanoclawConfig.get("gitUserName") || "Anton";
 export const gitUserEmail = nanoclawConfig.get("gitUserEmail") || "anton@dalab.tech";
 export const deployUser = nanoclawConfig.get("deployUser") || "anton";
+
+// App environment variables (written to ~/nanoclaw/.env)
+// envGithubToken uses 'env' prefix to avoid collision with githubToken (Pulumi's PAT)
+export const envGithubToken = nanoclawConfig.getSecret("envGithubToken") ?? pulumi.output("");
+export const githubUsername = nanoclawConfig.get("githubUsername") || "anton-dalab";
+export const claudeCodeOauthToken = nanoclawConfig.getSecret("claudeCodeOauthToken") ?? pulumi.output("");
+export const slackBotToken = nanoclawConfig.getSecret("slackBotToken") ?? pulumi.output("");
+export const slackAppToken = nanoclawConfig.getSecret("slackAppToken") ?? pulumi.output("");
+export const assistantName = nanoclawConfig.get("assistantName") || "Anton";

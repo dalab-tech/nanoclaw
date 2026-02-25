@@ -42,10 +42,19 @@ jobs:
 
       - name: Deploy via IAP tunnel
         run: |
+          # Write .env
+          gcloud compute ssh ${{ vars.GCP_VM_INSTANCE_NAME }} \
+            --zone=${{ vars.GCP_ZONE }} \
+            --tunnel-through-iap \
+            --command="sudo -u anton bash -c 'cat > ~/nanoclaw/.env && chmod 600 ~/nanoclaw/.env'" \
+            <<< "$NANOCLAW_DOTENV"
+          # Run deploy
           gcloud compute ssh ${{ vars.GCP_VM_INSTANCE_NAME }} \
             --zone=${{ vars.GCP_ZONE }} \
             --tunnel-through-iap \
             --command="$(cat scripts/deploy-remote.sh)"
+        env:
+          NANOCLAW_DOTENV: ${{ secrets.NANOCLAW_DOTENV }}
 
   deploy-oci:
     if: >-
@@ -63,8 +72,11 @@ jobs:
         run: |
           echo "${{ secrets.OCI_DEPLOY_SSH_KEY }}" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
-          ssh -o StrictHostKeyChecking=no \
-            -i /tmp/deploy_key \
-            ${{ vars.OCI_DEPLOY_USER }}@${{ vars.OCI_DEPLOY_HOST }} \
-            "$(cat scripts/deploy-remote.sh)"
+          SSH_CMD="ssh -o StrictHostKeyChecking=no -i /tmp/deploy_key ${{ vars.OCI_DEPLOY_USER }}@${{ vars.OCI_DEPLOY_HOST }}"
+          # Write .env
+          echo "$NANOCLAW_DOTENV" | $SSH_CMD "sudo -u anton bash -c 'cat > ~/nanoclaw/.env && chmod 600 ~/nanoclaw/.env'"
+          # Run deploy
+          $SSH_CMD "$(cat scripts/deploy-remote.sh)"
           rm -f /tmp/deploy_key
+        env:
+          NANOCLAW_DOTENV: ${{ secrets.NANOCLAW_DOTENV }}
