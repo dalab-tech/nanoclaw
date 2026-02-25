@@ -16,7 +16,6 @@ export const diskType = nanoclawConfig.get("diskType") || "pd-standard";
 
 // GitHub config
 export const githubToken = nanoclawConfig.requireSecret("githubToken");
-export const sshPrivateKey = nanoclawConfig.requireSecret("sshPrivateKey");
 export const githubOwner = nanoclawConfig.require("githubOwner");
 export const githubRepo = nanoclawConfig.require("githubRepo");
 export const gitUserName = nanoclawConfig.require("gitUserName");

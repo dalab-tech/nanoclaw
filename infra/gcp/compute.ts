@@ -9,7 +9,6 @@ import {
   diskSizeGb,
   diskType,
   deployUser,
-  sshPrivateKey,
   githubOwner,
   githubRepo,
   gitUserName,
@@ -18,6 +17,7 @@ import {
 import { subnet } from "./network";
 import { vmSa, cicdSa } from "./service-accounts";
 import { enabledApis } from "./apis";
+import { privateKeyOpenssh } from "./github";
 
 // Cloud-init script — base script + git config section appended by Pulumi
 const baseCloudInit = fs.readFileSync(
@@ -26,22 +26,22 @@ const baseCloudInit = fs.readFileSync(
 );
 
 const userData = pulumi
-  .all([sshPrivateKey, gitUserName, gitUserEmail])
+  .all([privateKeyOpenssh, gitUserName, gitUserEmail])
   .apply(([privKey, userName, userEmail]) => {
     const repoUrl = `git@github.com:${githubOwner}/${githubRepo}.git`;
 
     const gitSection = `
-# Written by Pulumi — SSH key for GitHub (${deployUser} user)
+# Written by Pulumi — deploy key for GitHub (${deployUser} user)
 mkdir -p /home/${deployUser}/.ssh
-cat > /home/${deployUser}/.ssh/github_key << 'SSHKEY'
+cat > /home/${deployUser}/.ssh/github_deploy_key << 'DEPLOY_KEY'
 ${privKey.trim()}
-SSHKEY
-chmod 600 /home/${deployUser}/.ssh/github_key
-chown ${deployUser}:${deployUser} /home/${deployUser}/.ssh/github_key
+DEPLOY_KEY
+chmod 600 /home/${deployUser}/.ssh/github_deploy_key
+chown ${deployUser}:${deployUser} /home/${deployUser}/.ssh/github_deploy_key
 
 cat > /home/${deployUser}/.ssh/config << 'SSHCONFIG'
 Host github.com
-  IdentityFile ~/.ssh/github_key
+  IdentityFile ~/.ssh/github_deploy_key
   IdentitiesOnly yes
   StrictHostKeyChecking accept-new
 SSHCONFIG
