@@ -21,6 +21,51 @@ fi
 
 NCLAW_DIR="$TENANT_HOME/nanoclaw"
 ENV_SOURCE="$TENANT_HOME/.$TENANT/.env.nanoclaw"
+SVC_DIR="$TENANT_HOME/.config/systemd/user"
+TENANT_UID=$(id -u "$TENANT")
+
+# ── Nanoclaw config provisioning ──────────────────────────────
+# These are idempotent and run on every deploy so changes propagate
+# without needing to replace the instance.
+
+# Systemd user service for nanoclaw
+$RUN mkdir -p "$SVC_DIR/default.target.wants"
+$RUN tee "$SVC_DIR/nanoclaw.service" > /dev/null << UNIT
+[Unit]
+Description=NanoClaw Personal Assistant
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/node $NCLAW_DIR/dist/index.js
+WorkingDirectory=$NCLAW_DIR
+Restart=always
+RestartSec=30
+EnvironmentFile=-$ENV_SOURCE
+Environment=HOME=$TENANT_HOME
+Environment=PATH=/usr/local/bin:/usr/bin:/bin:$TENANT_HOME/.local/bin
+
+[Install]
+WantedBy=default.target
+UNIT
+$RUN ln -sf "$SVC_DIR/nanoclaw.service" "$SVC_DIR/default.target.wants/nanoclaw.service"
+
+# GITHUB_TOKEN in .profile so gh/git auth works in interactive sessions
+if ! grep -q 'GITHUB_TOKEN.*\.env\.nanoclaw' "$TENANT_HOME/.profile" 2>/dev/null; then
+  $RUN tee -a "$TENANT_HOME/.profile" > /dev/null << 'PROFILE'
+
+# Auto-export GITHUB_TOKEN from nanoclaw config
+if [ -f ~/.$USER/.env.nanoclaw ]; then
+  export GITHUB_TOKEN=$(grep -m1 '^GITHUB_TOKEN=' ~/.$USER/.env.nanoclaw | cut -d= -f2-)
+fi
+PROFILE
+fi
+
+# Convenience symlinks in ~/.<tenant>/
+$RUN mkdir -p "$TENANT_HOME/.$TENANT"
+$RUN ln -sf "$TENANT_HOME/.config/nanoclaw/mount-allowlist.json" "$TENANT_HOME/.$TENANT/mount-allowlist.json"
+
+# ── Clone / update nanoclaw ───────────────────────────────────
 
 # Initial clone if needed
 if [ ! -d "$NCLAW_DIR" ]; then
@@ -47,6 +92,8 @@ $RUN bash -lc "
   fi
 "
 
+# ── Service management ────────────────────────────────────────
+
 # One-time admin tasks (only when running as admin with sudo)
 if [ -n "$RUN" ] && sudo -n true 2>/dev/null; then
   sudo loginctl enable-linger "$TENANT" 2>/dev/null || true
@@ -57,11 +104,12 @@ fi
 $RUN bash -c "pgrep -u $TENANT -f 'node.*nanoclaw/dist/index\.js' | xargs -r kill" 2>/dev/null || true
 sleep 1
 
-# Restart user service
-TENANT_UID=$(id -u "$TENANT")
+# Reload and restart user service
 if [ -n "$RUN" ]; then
+  $RUN XDG_RUNTIME_DIR="/run/user/${TENANT_UID}" systemctl --user daemon-reload
   $RUN XDG_RUNTIME_DIR="/run/user/${TENANT_UID}" systemctl --user restart nanoclaw
 else
+  systemctl --user daemon-reload
   systemctl --user restart nanoclaw
 fi
 

@@ -285,47 +285,13 @@ for NEW_USER in son anton; do
   chown -R "$NEW_USER:$NEW_USER" "/home/$NEW_USER/.config/mc"
 done
 
-# Per-user config shortcut: ~/.<user> with symlinks to nanoclaw config
-for NEW_USER in son anton; do
-  mkdir -p "/home/$NEW_USER/.$NEW_USER"
-  ln -sf "/home/$NEW_USER/nanoclaw/.env" "/home/$NEW_USER/.$NEW_USER/.env"
-  ln -sf "/home/$NEW_USER/.config/nanoclaw/mount-allowlist.json" "/home/$NEW_USER/.$NEW_USER/mount-allowlist.json"
-  chown -R "$NEW_USER:$NEW_USER" "/home/$NEW_USER/.$NEW_USER"
-  # Source GITHUB_TOKEN from nanoclaw .env so gh/git auth works automatically
-  cat >> "/home/$NEW_USER/.profile" << 'PROFILE'
-
-# Auto-export GITHUB_TOKEN from nanoclaw .env
-if [ -f ~/nanoclaw/.env ]; then
-  export GITHUB_TOKEN=$(grep -m1 '^GITHUB_TOKEN=' ~/nanoclaw/.env | cut -d= -f2-)
-fi
-PROFILE
-done
-
 # Enable lingering so systemd user services run without login
 for NEW_USER in son anton; do
   loginctl enable-linger "$NEW_USER"
 done
 
-# --- Nanoclaw systemd service template ---
-cat > /etc/systemd/system/nanoclaw@.service << 'UNIT'
-[Unit]
-Description=Nanoclaw (%i persona)
-After=network.target docker.service
-Requires=docker.service
-
-[Service]
-Type=simple
-User=%i
-WorkingDirectory=/home/%i/nanoclaw
-ExecStart=/usr/bin/node dist/index.js
-Restart=always
-RestartSec=5
-EnvironmentFile=/home/%i/nanoclaw/.env
-
-[Install]
-WantedBy=multi-user.target
-UNIT
-systemctl daemon-reload
+# Nanoclaw-specific config (systemd service, .env, symlinks, .profile)
+# is managed by deploy-remote.sh so it can be updated without instance replacement.
 
 # --- Status script (injected by Pulumi from infra/status.sh) ---
 # __STATUS_SCRIPT_PLACEHOLDER__

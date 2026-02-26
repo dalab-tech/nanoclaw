@@ -1,0 +1,23 @@
+{
+  "allowedRoots": [
+    {
+      "path": "~/workspace",
+      "allowReadWrite": true,
+      "description": "Repos and working directories"
+    },
+    {
+      "path": "~/.__TENANT__/brain",
+      "allowReadWrite": false,
+      "description": "Anton's identity and context (read-only)"
+    }
+  ],
+  "blockedPatterns": [
+    ".ssh",
+    ".gnupg",
+    ".env",
+    ".env.*",
+    ".netrc",
+    ".npmrc"
+  ],
+  "nonMainReadOnly": true
+}

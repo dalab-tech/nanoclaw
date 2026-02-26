@@ -321,49 +321,13 @@ for NEW_USER in $ALL_USERS; do
   chown -R "$NEW_USER:$NEW_USER" "/home/$NEW_USER/.config/mc"
 done
 
-# Per-user config shortcut: ~/.<user> with symlinks to nanoclaw config
-for NEW_USER in $ALL_USERS; do
-  mkdir -p "/home/$NEW_USER/.$NEW_USER"
-  ln -sf "/home/$NEW_USER/nanoclaw/.env" "/home/$NEW_USER/.$NEW_USER/.env"
-  ln -sf "/home/$NEW_USER/.config/nanoclaw/mount-allowlist.json" "/home/$NEW_USER/.$NEW_USER/mount-allowlist.json"
-  chown -R "$NEW_USER:$NEW_USER" "/home/$NEW_USER/.$NEW_USER"
-  # Source GITHUB_TOKEN from nanoclaw .env so gh/git auth works automatically
-  cat >> "/home/$NEW_USER/.profile" << 'PROFILE'
-
-# Auto-export GITHUB_TOKEN from nanoclaw .env
-if [ -f ~/nanoclaw/.env ]; then
-  export GITHUB_TOKEN=$(grep -m1 '^GITHUB_TOKEN=' ~/nanoclaw/.env | cut -d= -f2-)
-fi
-PROFILE
-done
-
-# --- Nanoclaw user-level systemd services (no system-level units) ---
+# Enable lingering so systemd user services run without login
 for NEW_USER in $ALL_USERS; do
   loginctl enable-linger "$NEW_USER"
-  SVC_DIR="/home/$NEW_USER/.config/systemd/user"
-  mkdir -p "$SVC_DIR/default.target.wants"
-  cat > "$SVC_DIR/nanoclaw.service" << UNIT
-[Unit]
-Description=NanoClaw Personal Assistant
-After=network.target
-
-[Service]
-Type=simple
-ExecStart=/usr/bin/node /home/$NEW_USER/nanoclaw/dist/index.js
-WorkingDirectory=/home/$NEW_USER/nanoclaw
-Restart=always
-RestartSec=30
-EnvironmentFile=-/home/$NEW_USER/nanoclaw/.env
-Environment=HOME=/home/$NEW_USER
-Environment=PATH=/usr/local/bin:/usr/bin:/bin:/home/$NEW_USER/.local/bin
-
-[Install]
-WantedBy=default.target
-UNIT
-  # Enable the service (symlink equivalent of systemctl --user enable)
-  ln -sf "$SVC_DIR/nanoclaw.service" "$SVC_DIR/default.target.wants/nanoclaw.service"
-  chown -R "$NEW_USER:$NEW_USER" "/home/$NEW_USER/.config/systemd"
 done
+
+# Nanoclaw-specific config (systemd service, .env, symlinks, .profile)
+# is managed by deploy-remote.sh so it can be updated without instance replacement.
 
 # --- Anti-idle cron (prevents OCI free-tier reclamation) ---
 systemctl enable cron 2>/dev/null || true

@@ -37,6 +37,7 @@ jobs:
             scripts/deploy-remote.sh
             infra/status.sh
             brain/
+            config/
           sparse-checkout-cone-mode: false
 
       - name: Authenticate to GCP via WIF
@@ -65,6 +66,10 @@ jobs:
             --command="sudo -u $TENANT bash -c 'mkdir -p ~/.local/bin && cat > ~/.local/bin/status && chmod +x ~/.local/bin/status'" \
             < infra/status.sh
 
+          # Deploy mount-allowlist to nanoclaw config dir (template tenant name)
+          sed "s/__TENANT__/$TENANT/g" config/mount-allowlist.json | $GCP_SSH \
+            --command="sudo -u $TENANT bash -c 'mkdir -p ~/.config/nanoclaw && cat > ~/.config/nanoclaw/mount-allowlist.json'"
+
           # Deploy brain/ for anton user only (clean sync)
           if [ "$TENANT" = "anton" ]; then
             tar -cf - -C brain . | $GCP_SSH \
@@ -92,6 +97,7 @@ jobs:
             scripts/deploy-remote.sh
             infra/status.sh
             brain/
+            config/
           sparse-checkout-cone-mode: false
 
       - name: Deploy
@@ -106,6 +112,9 @@ jobs:
 
           # Deploy status script to ~/.local/bin/
           cat infra/status.sh | $OCI_SSH "mkdir -p ~/.local/bin && cat > ~/.local/bin/status && chmod +x ~/.local/bin/status"
+
+          # Deploy mount-allowlist to nanoclaw config dir (template tenant name)
+          sed "s/__TENANT__/$TENANT/g" config/mount-allowlist.json | $OCI_SSH "mkdir -p ~/.config/nanoclaw && cat > ~/.config/nanoclaw/mount-allowlist.json"
 
           # Deploy brain/ for anton user only (clean sync)
           if [ "$TENANT" = "anton" ]; then
