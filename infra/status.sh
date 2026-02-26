@@ -4,25 +4,48 @@ ok() { echo -e "  ${G}✓${N} $1"; }
 warn() { echo -e "  ${Y}!${N} $1"; }
 fail() { echo -e "  ${R}✗${N} $1"; }
 
-echo -e "${C}nanoclaw status${N}"
+PERSONA=$(whoami)
+NCLAW_DIR="$HOME/nanoclaw"
 
-# Check nanoclaw services
-NCLAW_RUNNING=$(systemctl list-units --type=service --state=running --no-legend 'nanoclaw@*' 2>/dev/null | awk '{print $1}')
-NCLAW_FAILED=$(systemctl list-units --type=service --state=failed --no-legend 'nanoclaw@*' 2>/dev/null | awk '{print $1}')
+echo -e "${C}nanoclaw status${N} ($PERSONA)"
 
-if [ -z "$NCLAW_RUNNING" ] && [ -z "$NCLAW_FAILED" ]; then
-  warn "no nanoclaw services running"
+# ── Illegal state checks ───────────────────────────────────────
+
+# System-level nanoclaw services should not exist in multi-tenant setup
+SYS_SVCS=$(systemctl list-units --type=service --state=running,failed --no-legend 'nanoclaw@*' 2>/dev/null | awk '{print $1}')
+if [ -n "$SYS_SVCS" ]; then
+  for svc in $SYS_SVCS; do
+    fail "ILLEGAL: system-level $svc detected — multi-tenant requires user-level services only"
+  done
 fi
 
-for SVC in $NCLAW_RUNNING; do
-  PERSONA=$(echo "$SVC" | sed 's/nanoclaw@\(.*\)\.service/\1/')
-  PID=$(systemctl show -p MainPID "$SVC" --value)
-  UPTIME=$(ps -o etime= -p "$PID" 2>/dev/null | xargs)
-  ok "$SVC running (pid $PID, uptime $UPTIME)"
+# Multiple nanoclaw processes for this user
+NCLAW_PIDS=$(pgrep -u "$PERSONA" -f 'node.*dist/index\.js' 2>/dev/null)
+NCLAW_PID_COUNT=$(echo "$NCLAW_PIDS" | grep -c . 2>/dev/null || echo 0)
+if [ "$NCLAW_PID_COUNT" -gt 1 ]; then
+  fail "ILLEGAL: $NCLAW_PID_COUNT nanoclaw processes running (expected at most 1)"
+  echo "$NCLAW_PIDS" | while read -r p; do fail "  pid $p: $(ps -o args= -p "$p" 2>/dev/null)"; done
+fi
 
-  # Read persona .env for live API checks
-  ENV="/home/$PERSONA/nanoclaw/.env"
-  ENV_DATA=$(sudo cat "$ENV" 2>/dev/null)
+# Sudo access — tenant users shouldn't need it
+if sudo -n true 2>/dev/null; then
+  warn "$PERSONA has sudo access — not needed for nanoclaw, consider removing for tenant isolation"
+fi
+
+# ── Service ─────────────────────────────────────────────────────
+if systemctl --user is-active nanoclaw >/dev/null 2>&1; then
+  PID=$(systemctl --user show -p MainPID nanoclaw --value)
+  UPTIME=$(ps -o etime= -p "$PID" 2>/dev/null | xargs)
+  ok "nanoclaw running (pid $PID, uptime $UPTIME)"
+
+  SVC_START=$(systemctl --user show -p ActiveEnterTimestamp nanoclaw --value 2>/dev/null)
+  LOGS=$(journalctl --user -u nanoclaw --since="$SVC_START" --no-pager --output=cat 2>/dev/null)
+  if [ -z "$LOGS" ]; then
+    LOGS=$(tail -200 "$NCLAW_DIR/logs/nanoclaw.log" 2>/dev/null)
+  fi
+
+  # Channel checks from own .env (no sudo needed — it's our file)
+  ENV_DATA=$(cat "$NCLAW_DIR/.env" 2>/dev/null)
 
   # Slack: live token check
   SLACK_TOKEN=$(echo "$ENV_DATA" | grep -m1 '^SLACK_BOT_TOKEN=' | cut -d= -f2-)
@@ -53,16 +76,12 @@ for SVC in $NCLAW_RUNNING; do
   fi
 
   # WhatsApp: auth creds check
-  WA_DIR="/home/$PERSONA/nanoclaw/store/auth"
+  WA_DIR="$NCLAW_DIR/store/auth"
   if [ -d "$WA_DIR" ] && [ "$(ls -A "$WA_DIR" 2>/dev/null)" ]; then
     WA_LIVE="${G}✓${N} auth creds present"
   else
     WA_LIVE="${Y}!${N} no auth creds"
   fi
-
-  # Journal log secondary signal
-  SVC_START=$(systemctl show -p ActiveEnterTimestamp "$SVC" --value 2>/dev/null)
-  LOGS=$(sudo journalctl -u "$SVC" --since="$SVC_START" --no-pager --output=cat 2>/dev/null)
 
   for CH in Slack GitHub WhatsApp; do
     case $CH in
@@ -76,34 +95,52 @@ for SVC in $NCLAW_RUNNING; do
     else JSIG=""; fi
     echo -e "    ${CH}:${PAD} ${LIVE} ${JSIG}"
   done
-done
 
-for SVC in $NCLAW_FAILED; do
-  fail "$SVC failed"
-done
+elif systemctl --user is-failed nanoclaw >/dev/null 2>&1; then
+  fail "nanoclaw service failed"
+else
+  warn "nanoclaw service not running"
+fi
 
-if systemctl is-active --quiet docker 2>/dev/null; then
+# ── Docker ──────────────────────────────────────────────────────
+ROOTLESS_SOCK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/docker.sock"
+if [ -S "$ROOTLESS_SOCK" ]; then
   AGENT_COUNT=$(docker ps --filter "name=nanoclaw-" --format '{{.Names}}' 2>/dev/null | wc -l)
-  ok "docker running ($AGENT_COUNT agent containers)"
+  ok "docker (rootless) running ($AGENT_COUNT agent containers)"
+elif systemctl is-active --quiet docker 2>/dev/null; then
+  AGENT_COUNT=$(docker ps --filter "name=nanoclaw-" --format '{{.Names}}' 2>/dev/null | wc -l)
+  warn "using system docker ($AGENT_COUNT containers) — rootless recommended for tenant isolation"
 else
-  fail "docker not running"
+  fail "docker not available"
 fi
 
-if sudo -u anton bash -l -c "claude auth status" 2>&1 | grep -q '"loggedIn": true'; then
-  ok "claude authenticated (anton)"
-else
-  warn "claude not authenticated (anton) — run: sudo -u anton bash -l -c 'claude auth login'"
+# Cross-tenant container leak check
+ENV_DATA=${ENV_DATA:-$(cat "$NCLAW_DIR/.env" 2>/dev/null)}
+INSTANCE_ID=$(echo "$ENV_DATA" | grep -m1 '^INSTANCE_ID=' | cut -d= -f2-)
+EXPECTED_PREFIX="nanoclaw-${INSTANCE_ID:-$PERSONA}"
+FOREIGN=$(docker ps --filter "name=nanoclaw-" --format '{{.Names}}' 2>/dev/null | grep -v "^${EXPECTED_PREFIX}-" || true)
+if [ -n "$FOREIGN" ]; then
+  fail "ILLEGAL: containers with foreign prefix (possible cross-tenant leak):"
+  echo "$FOREIGN" | while read -r c; do fail "  $c"; done
 fi
 
-# Anti-idle cron (OCI free-tier; shows missing on GCP which is expected)
-CRON_USER=""
-for U in ubuntu opc; do id "$U" &>/dev/null && CRON_USER="$U" && break; done
-if [ -n "$CRON_USER" ] && sudo crontab -l -u "$CRON_USER" 2>/dev/null | grep -q stress-ng; then
+# ── Claude auth ─────────────────────────────────────────────────
+if bash -l -c "claude auth status" 2>&1 | grep -q '"loggedIn": true'; then
+  ok "claude authenticated"
+else
+  warn "claude not authenticated — run: claude auth login"
+fi
+
+# ── Anti-idle (informational, no sudo) ──────────────────────────
+if pgrep -x stress-ng >/dev/null 2>&1; then
+  ok "anti-idle active (stress-ng running)"
+elif crontab -l 2>/dev/null | grep -q stress-ng; then
   ok "anti-idle cron active"
 else
-  warn "anti-idle cron missing"
+  warn "anti-idle not detected (expected on OCI free-tier)"
 fi
 
+# ── Resources ───────────────────────────────────────────────────
 echo -e "\n${C}reclamation risk${N} (safe if any metric >=20%)"
 CPU_USED=$(top -bn2 -d0.5 | grep '%Cpu' | tail -1 | awk '{printf "%.0f", 100 - $8}')
 MEM_PCT=$(free | awk '/Mem:/{printf "%.0f", $3/$2*100}')

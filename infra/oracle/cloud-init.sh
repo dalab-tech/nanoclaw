@@ -150,13 +150,15 @@ echo '/swapfile none swap sw 0 0' >> /etc/fstab
 curl -fsSL https://claude.ai/install.sh | bash
 
 # --- Users ---
-# son: human admin for managing nanoclaw and the instance
-# anton: bot user for autonomous GitHub engineering tasks
-for NEW_USER in son anton; do
+# Admins: human operators who manage the instance (get sudo)
+# Tenants: bot users running sandboxed nanoclaw instances (no sudo)
+ADMINS="son"
+TENANTS="anton"
+ALL_USERS="$ADMINS $TENANTS"
+
+for NEW_USER in $ALL_USERS; do
   useradd -m -s /bin/bash "$NEW_USER"
   usermod -aG docker "$NEW_USER"
-  echo "$NEW_USER ALL=(ALL) NOPASSWD:ALL" > "/etc/sudoers.d/$NEW_USER"
-  chmod 440 "/etc/sudoers.d/$NEW_USER"
   # Copy SSH authorized keys from default OS user
   mkdir -p "/home/$NEW_USER/.ssh"
   cp "$USER_HOME/.ssh/authorized_keys" "/home/$NEW_USER/.ssh/authorized_keys"
@@ -168,6 +170,12 @@ for NEW_USER in son anton; do
   chown "$NEW_USER:$NEW_USER" "/home/$NEW_USER/workspace"
   # SSH key for GitHub
   su - "$NEW_USER" -c "ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N '' -C '${NEW_USER}@nanoclaw'"
+done
+
+# Sudo only for admins — tenant users are fully sandboxed
+for ADMIN in $ADMINS; do
+  echo "$ADMIN ALL=(ALL) NOPASSWD:ALL" > "/etc/sudoers.d/$ADMIN"
+  chmod 440 "/etc/sudoers.d/$ADMIN"
 done
 
 # --- Midnight Commander warm skin + config ---
@@ -307,14 +315,14 @@ cat > /usr/share/mc/skins/warm256.ini << 'MCSKIN'
     window-close-char = ✕
 MCSKIN
 
-for NEW_USER in son anton; do
+for NEW_USER in $ALL_USERS; do
   mkdir -p "/home/$NEW_USER/.config/mc"
   echo -e "[Midnight-Commander]\nskin=warm256" > "/home/$NEW_USER/.config/mc/ini"
   chown -R "$NEW_USER:$NEW_USER" "/home/$NEW_USER/.config/mc"
 done
 
 # Per-user config shortcut: ~/.<user> with symlinks to nanoclaw config
-for NEW_USER in son anton; do
+for NEW_USER in $ALL_USERS; do
   mkdir -p "/home/$NEW_USER/.$NEW_USER"
   ln -sf "/home/$NEW_USER/nanoclaw/.env" "/home/$NEW_USER/.$NEW_USER/.env"
   ln -sf "/home/$NEW_USER/.config/nanoclaw/mount-allowlist.json" "/home/$NEW_USER/.$NEW_USER/mount-allowlist.json"
@@ -329,26 +337,33 @@ fi
 PROFILE
 done
 
-# --- Nanoclaw systemd service template ---
-cat > /etc/systemd/system/nanoclaw@.service << 'UNIT'
+# --- Nanoclaw user-level systemd services (no system-level units) ---
+for NEW_USER in $ALL_USERS; do
+  loginctl enable-linger "$NEW_USER"
+  SVC_DIR="/home/$NEW_USER/.config/systemd/user"
+  mkdir -p "$SVC_DIR/default.target.wants"
+  cat > "$SVC_DIR/nanoclaw.service" << UNIT
 [Unit]
-Description=Nanoclaw (%i persona)
-After=network.target docker.service
-Requires=docker.service
+Description=NanoClaw Personal Assistant
+After=network.target
 
 [Service]
 Type=simple
-User=%i
-WorkingDirectory=/home/%i/nanoclaw
-ExecStart=/usr/bin/node dist/index.js
+ExecStart=/usr/bin/node /home/$NEW_USER/nanoclaw/dist/index.js
+WorkingDirectory=/home/$NEW_USER/nanoclaw
 Restart=always
-RestartSec=5
-EnvironmentFile=/home/%i/nanoclaw/.env
+RestartSec=30
+EnvironmentFile=-/home/$NEW_USER/nanoclaw/.env
+Environment=HOME=/home/$NEW_USER
+Environment=PATH=/usr/local/bin:/usr/bin:/bin:/home/$NEW_USER/.local/bin
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
 UNIT
-systemctl daemon-reload
+  # Enable the service (symlink equivalent of systemctl --user enable)
+  ln -sf "$SVC_DIR/nanoclaw.service" "$SVC_DIR/default.target.wants/nanoclaw.service"
+  chown -R "$NEW_USER:$NEW_USER" "/home/$NEW_USER/.config/systemd"
+done
 
 # --- Anti-idle cron (prevents OCI free-tier reclamation) ---
 systemctl enable cron 2>/dev/null || true
