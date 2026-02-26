@@ -120,13 +120,15 @@ echo '/swapfile none swap sw 0 0' >> /etc/fstab
 curl -fsSL https://claude.ai/install.sh | bash
 
 # --- Users ---
-# son: human admin for managing nanoclaw and the instance
-# anton: bot user for autonomous GitHub engineering tasks
-for NEW_USER in son anton; do
+# Admins: human operators who manage the instance (get sudo)
+# Tenants: bot users running sandboxed nanoclaw instances (no sudo)
+ADMINS="son"
+TENANTS="anton"
+ALL_USERS="$ADMINS $TENANTS"
+
+for NEW_USER in $ALL_USERS; do
   useradd -m -s /bin/bash "$NEW_USER"
   usermod -aG docker,systemd-journal "$NEW_USER"
-  echo "$NEW_USER ALL=(ALL) NOPASSWD:ALL" > "/etc/sudoers.d/$NEW_USER"
-  chmod 440 "/etc/sudoers.d/$NEW_USER"
   # Copy SSH authorized keys from default OS user
   mkdir -p "/home/$NEW_USER/.ssh"
   if [ -f "$USER_HOME/.ssh/authorized_keys" ]; then
@@ -140,6 +142,12 @@ for NEW_USER in son anton; do
   chown "$NEW_USER:$NEW_USER" "/home/$NEW_USER/workspace"
   # SSH key for GitHub
   su - "$NEW_USER" -c "ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N '' -C '${NEW_USER}@nanoclaw'"
+done
+
+# Sudo only for admins — tenant users are fully sandboxed
+for ADMIN in $ADMINS; do
+  echo "$ADMIN ALL=(ALL) NOPASSWD:ALL" > "/etc/sudoers.d/$ADMIN"
+  chmod 440 "/etc/sudoers.d/$ADMIN"
 done
 
 # --- Midnight Commander warm skin + config ---
@@ -279,14 +287,14 @@ cat > /usr/share/mc/skins/warm256.ini << 'MCSKIN'
     window-close-char = ✕
 MCSKIN
 
-for NEW_USER in son anton; do
+for NEW_USER in $ALL_USERS; do
   mkdir -p "/home/$NEW_USER/.config/mc"
   echo -e "[Midnight-Commander]\nskin=warm256" > "/home/$NEW_USER/.config/mc/ini"
   chown -R "$NEW_USER:$NEW_USER" "/home/$NEW_USER/.config"
 done
 
 # Enable lingering so systemd user services run without login
-for NEW_USER in son anton; do
+for NEW_USER in $ALL_USERS; do
   loginctl enable-linger "$NEW_USER"
 done
 

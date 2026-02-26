@@ -1,17 +1,25 @@
 #!/usr/bin/env bash
 # sup — NanoClaw remote diagnostics
-# Usage: sup [target]         Live log tail
-#        sup [target] --snap  Quick status snapshot
+# Usage: sup [target] [--user <name>] [--snap]
 #   target: gcp (default) | oci
+#   --user:  OS username (default: anton)
+#   --snap:  Quick status snapshot instead of live tail
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-TARGET="${1:-gcp}"
-[[ "$TARGET" == "--snap" ]] && { TARGET="gcp"; SNAP=true; } || SNAP=false
-[[ "${2:-}" == "--snap" ]] && SNAP=true
-
+TARGET="gcp"
+SNAP=false
 USER="anton"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --snap) SNAP=true; shift ;;
+    --user) USER="$2"; shift 2 ;;
+    gcp|oci) TARGET="$1"; shift ;;
+    *) echo "Usage: sup [gcp|oci] [--user <name>] [--snap]"; exit 1 ;;
+  esac
+done
 
 # Build SSH command based on target
 case "$TARGET" in
