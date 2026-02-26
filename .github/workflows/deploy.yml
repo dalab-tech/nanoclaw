@@ -24,6 +24,7 @@ permissions:
 
 jobs:
   deploy-gcp:
+    # GCP: SSH as SA user (OS Login, has sudo), delegate to tenant via sudo -u
     if: >-
       github.event_name == 'repository_dispatch' ||
       inputs.target == 'gcp' || inputs.target == 'both'
@@ -46,32 +47,33 @@ jobs:
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Deploy status script
-        run: |
-          gcloud compute ssh ${{ vars.GCP_VM_INSTANCE_NAME }} \
-            --zone=${{ vars.GCP_ZONE }} \
-            --tunnel-through-iap \
-            --command="sudo tee /usr/local/bin/status > /dev/null && sudo chmod +x /usr/local/bin/status" \
-            < infra/status.sh
-
-      - name: Deploy via IAP tunnel
+      - name: Deploy
         run: |
           TENANT="${{ inputs.tenant || 'anton' }}"
-          # Write .env
-          gcloud compute ssh ${{ vars.GCP_VM_INSTANCE_NAME }} \
-            --zone=${{ vars.GCP_ZONE }} \
-            --tunnel-through-iap \
-            --command="sudo -u $TENANT bash -c 'cat > ~/nanoclaw/.env && chmod 600 ~/nanoclaw/.env'" \
+          VM="${{ vars.GCP_VM_INSTANCE_NAME }}"
+          ZONE="${{ vars.GCP_ZONE }}"
+          GCP_SSH="gcloud compute ssh ${VM} --zone=${ZONE} --tunnel-through-iap"
+
+          # Write .env as tenant (SA user has sudo)
+          $GCP_SSH \
+            --command="sudo -u $TENANT bash -c 'mkdir -p ~/nanoclaw && cat > ~/nanoclaw/.env && chmod 600 ~/nanoclaw/.env'" \
             <<< "$NANOCLAW_DOTENV"
-          # Run deploy
-          gcloud compute ssh ${{ vars.GCP_VM_INSTANCE_NAME }} \
-            --zone=${{ vars.GCP_ZONE }} \
-            --tunnel-through-iap \
-            --command="$(cat scripts/deploy-remote.sh) $TENANT"
+
+          # Deploy status script to tenant's ~/.local/bin/
+          $GCP_SSH \
+            --command="sudo -u $TENANT bash -c 'mkdir -p ~/.local/bin && cat > ~/.local/bin/status && chmod +x ~/.local/bin/status'" \
+            < infra/status.sh
+
+          # Run deploy (deploy-remote.sh auto-detects admin mode, uses sudo -u)
+          REPO_URL="https://github.com/${{ github.repository }}.git"
+          $GCP_SSH \
+            --command="TENANT=$TENANT REPO_URL=$REPO_URL bash -s" \
+            < scripts/deploy-remote.sh
         env:
           NANOCLAW_DOTENV: ${{ secrets.NANOCLAW_DOTENV }}
 
   deploy-oci:
+    # OCI: SSH as tenant directly (no sudo needed)
     if: >-
       github.event_name == 'repository_dispatch' ||
       inputs.target == 'oci' || inputs.target == 'both'
@@ -85,24 +87,23 @@ jobs:
             infra/status.sh
           sparse-checkout-cone-mode: false
 
-      - name: Deploy status script
-        run: |
-          echo "${{ secrets.OCI_DEPLOY_SSH_KEY }}" > /tmp/deploy_key
-          chmod 600 /tmp/deploy_key
-          SSH_CMD="ssh -o StrictHostKeyChecking=no -i /tmp/deploy_key ${{ vars.OCI_DEPLOY_USER }}@${{ vars.OCI_DEPLOY_HOST }}"
-          cat infra/status.sh | $SSH_CMD "sudo tee /usr/local/bin/status > /dev/null && sudo chmod +x /usr/local/bin/status"
-          rm -f /tmp/deploy_key
-
-      - name: Deploy via SSH
+      - name: Deploy
         run: |
           TENANT="${{ inputs.tenant || 'anton' }}"
           echo "${{ secrets.OCI_DEPLOY_SSH_KEY }}" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
-          SSH_CMD="ssh -o StrictHostKeyChecking=no -i /tmp/deploy_key ${{ vars.OCI_DEPLOY_USER }}@${{ vars.OCI_DEPLOY_HOST }}"
-          # Write .env
-          echo "$NANOCLAW_DOTENV" | $SSH_CMD "sudo -u $TENANT bash -c 'cat > ~/nanoclaw/.env && chmod 600 ~/nanoclaw/.env'"
-          # Run deploy
-          $SSH_CMD "$(cat scripts/deploy-remote.sh) $TENANT"
+          OCI_SSH="ssh -o StrictHostKeyChecking=no -i /tmp/deploy_key ${TENANT}@${{ vars.OCI_DEPLOY_HOST }}"
+
+          # Write .env as tenant (SSH is the tenant, no sudo)
+          echo "$NANOCLAW_DOTENV" | $OCI_SSH "mkdir -p ~/nanoclaw && cat > ~/nanoclaw/.env && chmod 600 ~/nanoclaw/.env"
+
+          # Deploy status script to ~/.local/bin/
+          cat infra/status.sh | $OCI_SSH "mkdir -p ~/.local/bin && cat > ~/.local/bin/status && chmod +x ~/.local/bin/status"
+
+          # Run deploy (deploy-remote.sh auto-detects tenant mode, no sudo)
+          REPO_URL="https://github.com/${{ github.repository }}.git"
+          cat scripts/deploy-remote.sh | $OCI_SSH "TENANT=$TENANT REPO_URL=$REPO_URL bash -s"
+
           rm -f /tmp/deploy_key
         env:
           NANOCLAW_DOTENV: ${{ secrets.NANOCLAW_DOTENV }}

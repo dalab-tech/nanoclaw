@@ -2,43 +2,61 @@
 # Deploy script executed on the remote server.
 # Called by .github/workflows/deploy.yml — do not run locally.
 #
-# Usage: deploy-remote.sh [tenant]
-#   tenant: OS username to deploy as (default: anton)
+# Expects environment variables:
+#   TENANT: OS username to deploy as (default: current user)
+#   REPO_URL: Git repository URL (default: dalab-tech/nanoclaw)
 set -e
 
-TENANT="${1:-anton}"
-TENANT_UID=$(id -u "$TENANT")
+TENANT="${TENANT:-$(whoami)}"
+REPO_URL="${REPO_URL:-https://github.com/dalab-tech/nanoclaw.git}"
 
-# Run deploy commands as tenant
-sudo -u "$TENANT" bash -lc "
+# Auto-detect: running as tenant or as admin?
+if [ "$(whoami)" = "$TENANT" ]; then
+  RUN=""
+  TENANT_HOME="$HOME"
+else
+  RUN="sudo -u $TENANT"
+  TENANT_HOME=$(eval echo "~$TENANT")
+fi
+
+NCLAW_DIR="$TENANT_HOME/nanoclaw"
+
+# Initial clone if needed
+if [ ! -d "$NCLAW_DIR" ]; then
+  echo "Initial clone..."
+  $RUN git clone "$REPO_URL" "$NCLAW_DIR"
+fi
+
+# Pull and build as tenant
+$RUN bash -lc "
   cd ~/nanoclaw
-
-  # Stash local changes, pull, restore
   git stash --include-untracked 2>/dev/null || true
   git pull --rebase origin main
   git stash pop 2>/dev/null || true
-
-  # Install deps and build
   npm install
   npm run build
-
-  # Rebuild container if Dockerfile changed
   if git diff HEAD~1 --name-only | grep -q container/; then
-    echo \"Container files changed, rebuilding...\"
+    echo 'Container files changed, rebuilding...'
     ./container/build.sh
   fi
 "
 
-# Ensure lingering is enabled (user service must survive SSH disconnect)
-sudo loginctl enable-linger "$TENANT"
+# One-time admin tasks (only when running as admin with sudo)
+if [ -n "$RUN" ] && sudo -n true 2>/dev/null; then
+  sudo loginctl enable-linger "$TENANT" 2>/dev/null || true
+  sudo systemctl disable --now "nanoclaw@${TENANT}" 2>/dev/null || true
+fi
 
-# Disable system-level service if present (conflicts with user service)
-sudo systemctl disable --now "nanoclaw@${TENANT}" 2>/dev/null || true
-
-# Kill any orphaned nanoclaw processes before restart
-sudo -u "$TENANT" bash -c "pgrep -u $TENANT -f 'node.*nanoclaw/dist/index\.js' | xargs -r kill" 2>/dev/null || true
+# Kill orphaned processes
+$RUN bash -c "pgrep -u $TENANT -f 'node.*nanoclaw/dist/index\.js' | xargs -r kill" 2>/dev/null || true
 sleep 1
 
 # Restart user service
-sudo -u "$TENANT" XDG_RUNTIME_DIR="/run/user/${TENANT_UID}" systemctl --user restart nanoclaw
+TENANT_UID=$(id -u "$TENANT")
+if [ -n "$RUN" ]; then
+  $RUN XDG_RUNTIME_DIR="/run/user/${TENANT_UID}" systemctl --user restart nanoclaw
+else
+  systemctl --user restart nanoclaw
+fi
+
 echo "Deploy complete for tenant: $TENANT"
