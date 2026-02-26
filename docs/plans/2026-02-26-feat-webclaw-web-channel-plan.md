@@ -1,7 +1,7 @@
 ---
 title: "WebClaw: Web Channel for NanoClaw + Chat UI in Stix"
 type: feat
-status: active
+status: completed
 date: 2026-02-26
 origin: docs/plans/nano-claw-web-channel.md
 deepened: 2026-02-26
@@ -230,21 +230,21 @@ graph TB
 
 **Tasks:**
 
-- [ ] Install dependencies: `hono`, `@hono/node-server`, `@hono/zod-validator`
-- [ ] Add `web_sessions` table to `src/db.ts` for session persistence across restarts
-- [ ] Create `src/channels/web.ts` implementing the `Channel` interface
-- [ ] Add env config: `WEB_AUTH_TOKEN`, `WEB_API_PORT` (default 3100)
-- [ ] Register web channel in `src/index.ts` (conditional on `WEB_AUTH_TOKEN`)
-- [ ] Implement `POST /api/sessions/:id/chat` with held-open text stream response
-- [ ] Wire `sendMessage()` and `setTyping()` to the pending response writer
-- [ ] Implement smooth streaming in `sendMessage()`: buffer text, release word-by-word at 5ms intervals (adaptive chunking for long texts)
-- [ ] **[NEW]** Bypass polling loop: add `onDirectEnqueue` callback to web channel opts, call `queue.enqueueMessageCheck(jid)` directly after storing message (eliminates 0-2s latency)
-- [ ] **[NEW]** Enable SQLite WAL mode in `initDatabase()`: `db.pragma('journal_mode = WAL')` + `db.pragma('busy_timeout = 5000')`
-- [ ] **[NEW]** Add composite index: `CREATE INDEX IF NOT EXISTS idx_messages_chat_jid_ts ON messages(chat_jid, timestamp)`
-- [ ] **[NEW]** Use random session IDs: `web-${Date.now()}-${crypto.randomUUID().slice(0,8)}` (not `web-{timestamp}`)
-- [ ] **[NEW]** Wrap session creation in `db.transaction()` (atomic writes to web_sessions + chats + registered_groups)
-- [ ] **[NEW]** Serialize writes with `writeQueue: Promise<void>` in pendingResponses — prevents concurrent sendMessage garble
-- [ ] **[NEW]** Configure server timeouts: `server.requestTimeout = 0`, `server.keepAliveTimeout = 60_000`
+- [x] Install dependencies: `hono`, `@hono/node-server`, `@hono/zod-validator`
+- [x] Add `web_sessions` table to `src/db.ts` for session persistence across restarts
+- [x] Create `src/channels/web.ts` implementing the `Channel` interface
+- [x] Add env config: `WEB_AUTH_TOKEN`, `WEB_API_PORT` (default 3100)
+- [x] Register web channel in `src/index.ts` (conditional on `WEB_AUTH_TOKEN`)
+- [x] Implement `POST /api/sessions/:id/chat` with held-open text stream response
+- [x] Wire `sendMessage()` and `setTyping()` to the pending response writer
+- [x] Implement smooth streaming in `sendMessage()`: buffer text, release word-by-word at 5ms intervals (adaptive chunking for long texts)
+- [x] **[NEW]** Bypass polling loop: add `onDirectEnqueue` callback to web channel opts, call `queue.enqueueMessageCheck(jid)` directly after storing message (eliminates 0-2s latency)
+- [x] **[NEW]** Enable SQLite WAL mode in `initDatabase()`: `db.pragma('journal_mode = WAL')` + `db.pragma('busy_timeout = 5000')`
+- [x] **[NEW]** Add composite index: `CREATE INDEX IF NOT EXISTS idx_messages_chat_jid_ts ON messages(chat_jid, timestamp)`
+- [x] **[NEW]** Use random session IDs: `web-${Date.now()}-${crypto.randomUUID().slice(0,8)}` (not `web-{timestamp}`)
+- [x] **[NEW]** Wrap session creation in `db.transaction()` (atomic writes to web_sessions + chats + registered_groups)
+- [x] **[NEW]** Serialize writes with `writeQueue: Promise<void>` in pendingResponses — prevents concurrent sendMessage garble
+- [x] **[NEW]** Configure server timeouts: `server.requestTimeout = 0`, `server.keepAliveTimeout = 60_000`
 
 **Key decisions embedded:**
 
@@ -441,11 +441,11 @@ if (result.status === 'error') {
 
 **Tasks:**
 
-- [ ] Create `stix-api/src/api/routes/webclaw.ts` with proxy routes
-- [ ] Mount in `stix-api/src/api/index.ts`
-- [ ] Add `NANOCLAW_API_URL` and `NANOCLAW_AUTH_TOKEN` to stix-api env config
-- [ ] Implement text stream proxy for the chat endpoint (simple `fetch()` + pipe)
-- [ ] JSON proxy for session CRUD and message history endpoints
+- [x] Create `stix-api/src/api/routes/webclaw.ts` with proxy routes
+- [x] Mount in `stix-api/src/api/index.ts`
+- [x] Add `NANOCLAW_API_URL` and `NANOCLAW_AUTH_TOKEN` to stix-api env config
+- [x] Implement text stream proxy for the chat endpoint (simple `fetch()` + pipe)
+- [x] JSON proxy for session CRUD and message history endpoints
 
 **Text stream proxy — the simple part:**
 
@@ -574,14 +574,14 @@ const webclaw = new Hono()
 
 **Tasks:**
 
-- [ ] Install `@ai-sdk/react` in stix-spa (already has `ai@6.0.67` in root)
-- [ ] Create `/chat` route (standalone, outside workspace layout)
-- [ ] Create `/chat/$sessionId` route for session detail
-- [ ] Create `WebclawChat` component with DaisyUI chat bubbles
-- [ ] Wire `useChat` with `TextStreamChatTransport` pointing at stix-api proxy
-- [ ] Add session list sidebar within the chat page
-- [ ] Add session history loading on page refresh (hydrate `useChat` via `setMessages`)
-- [ ] Add error states: connection lost, agent timeout, session not found
+- [x] Install `@ai-sdk/react` in stix-spa (already has `ai@6.0.67` in root)
+- [x] Create `/chat` route (standalone, outside workspace layout)
+- [x] Create `/chat/$sessionId` route for session detail
+- [x] Create `WebclawChat` component with DaisyUI chat bubbles
+- [x] Wire `useChat` with `TextStreamChatTransport` pointing at stix-api proxy
+- [x] Add session list sidebar within the chat page
+- [x] Add session history loading on page refresh (hydrate `useChat` via `setMessages`)
+- [x] Add error states: connection lost, agent timeout, session not found
 
 **UI design:**
 
@@ -765,15 +765,15 @@ const canSend = hydrated && status === 'ready';
 
 **Tasks:**
 
-- [ ] Request body size limit on chat endpoint (64KB)
-- [ ] Rate limiting: max 10 sessions/minute, max 30 messages/minute per auth token
-- [ ] Client-generated message UUID for deduplication (`INSERT OR REPLACE`)
-- [ ] Health endpoint: `GET /api/health` (outside Bearer auth)
-- [ ] Container timeout for web sessions: `WEB_CONTAINER_TIMEOUT` env var (default 5 minutes)
-- [ ] Logging: session creation, message receipt, stream connect/disconnect, errors
-- [ ] Port conflict handling: catch `EADDRINUSE`, log error, don't crash other channels
+- [x] Request body size limit on chat endpoint (64KB)
+- [x] Rate limiting: max 10 sessions/minute, max 30 messages/minute per auth token
+- [x] Client-generated message UUID for deduplication (`INSERT OR REPLACE`)
+- [x] Health endpoint: `GET /api/health` (outside Bearer auth)
+- [x] Container timeout for web sessions: `WEB_CONTAINER_TIMEOUT` env var (default 5 minutes)
+- [x] Logging: session creation, message receipt, stream connect/disconnect, errors
+- [x] Port conflict handling: catch `EADDRINUSE`, log error, don't crash other channels
 - [ ] Error recovery UI: `regenerate()` button on error status
-- [ ] Firebase token refresh: periodic re-auth for long chat sessions
+- [x] Firebase token refresh: periodic re-auth for long chat sessions
 
 **Success criteria:**
 - Misbehaving client can't exhaust container slots
