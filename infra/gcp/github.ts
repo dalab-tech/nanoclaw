@@ -17,7 +17,7 @@ const deployKey = new tls.PrivateKey("nanoclaw-deploy-key", {
 // Register the public key as a deploy key on the repo (read-write)
 const repoDeployKey = new github.RepositoryDeployKey("nanoclaw-deploy-key", {
   repository: githubRepo,
-  title: pulumi.interpolate`nanoclaw-gcp-${Date.now()}`,
+  title: "nanoclaw-gcp-deploy-key",
   key: deployKey.publicKeyOpenssh,
   readOnly: false,
 }, { provider: githubProvider });

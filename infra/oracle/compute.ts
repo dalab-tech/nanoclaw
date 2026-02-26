@@ -119,4 +119,4 @@ export const instance = new oci.core.Instance("nanoclaw", {
     project: "nanoclaw",
     managed_by: "pulumi",
   },
-}, { provider });
+}, { provider, ignoreChanges: ["metadata"] });
