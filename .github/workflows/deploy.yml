@@ -67,6 +67,8 @@ jobs:
             < infra/status.sh
 
           # Deploy mount-allowlist to nanoclaw config dir (template tenant name)
+          # Fix .config ownership in case cloud-init left it root-owned
+          $GCP_SSH --command="sudo chown $TENANT:$TENANT /home/$TENANT/.config 2>/dev/null || true"
           sed "s/__TENANT__/$TENANT/g" config/mount-allowlist.json | $GCP_SSH \
             --command="sudo -u $TENANT bash -c 'mkdir -p ~/.config/nanoclaw && cat > ~/.config/nanoclaw/mount-allowlist.json'"
 

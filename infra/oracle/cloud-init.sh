@@ -318,7 +318,7 @@ MCSKIN
 for NEW_USER in $ALL_USERS; do
   mkdir -p "/home/$NEW_USER/.config/mc"
   echo -e "[Midnight-Commander]\nskin=warm256" > "/home/$NEW_USER/.config/mc/ini"
-  chown -R "$NEW_USER:$NEW_USER" "/home/$NEW_USER/.config/mc"
+  chown -R "$NEW_USER:$NEW_USER" "/home/$NEW_USER/.config"
 done
 
 # Enable lingering so systemd user services run without login
