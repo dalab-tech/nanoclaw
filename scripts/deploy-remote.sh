@@ -20,11 +20,17 @@ else
 fi
 
 NCLAW_DIR="$TENANT_HOME/nanoclaw"
+ENV_SOURCE="$TENANT_HOME/.$TENANT/.env.nanoclaw"
 
 # Initial clone if needed
 if [ ! -d "$NCLAW_DIR" ]; then
   echo "Initial clone..."
   $RUN git clone "$REPO_URL" "$NCLAW_DIR"
+fi
+
+# Symlink .env from ~/.<tenant>/.env.nanoclaw into the repo
+if [ -f "$ENV_SOURCE" ]; then
+  $RUN ln -sf "$ENV_SOURCE" "$NCLAW_DIR/.env"
 fi
 
 # Pull and build as tenant

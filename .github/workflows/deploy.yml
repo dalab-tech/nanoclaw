@@ -54,9 +54,9 @@ jobs:
           ZONE="${{ vars.GCP_ZONE }}"
           GCP_SSH="gcloud compute ssh ${VM} --zone=${ZONE} --tunnel-through-iap"
 
-          # Write .env as tenant (SA user has sudo)
+          # Write .env outside the repo dir to avoid creating ~/nanoclaw before git clone
           $GCP_SSH \
-            --command="sudo -u $TENANT bash -c 'mkdir -p ~/nanoclaw && cat > ~/nanoclaw/.env && chmod 600 ~/nanoclaw/.env'" \
+            --command="sudo -u $TENANT bash -c 'mkdir -p ~/.$TENANT && cat > ~/.$TENANT/.env.nanoclaw && chmod 600 ~/.$TENANT/.env.nanoclaw'" \
             <<< "$NANOCLAW_DOTENV"
 
           # Deploy status script to tenant's ~/.local/bin/
@@ -94,8 +94,8 @@ jobs:
           chmod 600 /tmp/deploy_key
           OCI_SSH="ssh -o StrictHostKeyChecking=no -i /tmp/deploy_key ${TENANT}@${{ vars.OCI_DEPLOY_HOST }}"
 
-          # Write .env as tenant (SSH is the tenant, no sudo)
-          echo "$NANOCLAW_DOTENV" | $OCI_SSH "mkdir -p ~/nanoclaw && cat > ~/nanoclaw/.env && chmod 600 ~/nanoclaw/.env"
+          # Write .env outside the repo dir to avoid creating ~/nanoclaw before git clone
+          echo "$NANOCLAW_DOTENV" | $OCI_SSH "mkdir -p ~/.$TENANT && cat > ~/.$TENANT/.env.nanoclaw && chmod 600 ~/.$TENANT/.env.nanoclaw"
 
           # Deploy status script to ~/.local/bin/
           cat infra/status.sh | $OCI_SSH "mkdir -p ~/.local/bin && cat > ~/.local/bin/status && chmod +x ~/.local/bin/status"
