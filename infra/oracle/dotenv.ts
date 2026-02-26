@@ -1,6 +1,6 @@
 import * as pulumi from "@pulumi/pulumi";
 import {
-  envGithubToken,
+  githubToken,
   githubUsername,
   claudeCodeOauthToken,
   slackBotToken,
@@ -11,7 +11,7 @@ import {
 // Constructs the .env content string from Pulumi config values.
 // Used by compute.ts (cloud-init) and github-environments.ts (deploy secret).
 export const dotenvContent: pulumi.Output<string> = pulumi
-  .all([envGithubToken, claudeCodeOauthToken, slackBotToken, slackAppToken])
+  .all([githubToken, claudeCodeOauthToken, slackBotToken, slackAppToken])
   .apply(([ghToken, claudeToken, slackBot, slackApp]) =>
     [
       `GITHUB_TOKEN=${ghToken}`,

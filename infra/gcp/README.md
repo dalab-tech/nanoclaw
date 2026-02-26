@@ -37,7 +37,7 @@ pulumi config set nanoclaw:githubOwner dalab-tech
 pulumi config set nanoclaw:githubRepo nanoclaw
 pulumi config set nanoclaw:gitUserName Anton
 pulumi config set nanoclaw:gitUserEmail anton@datech.lab
-pulumi config set --secret nanoclaw:githubToken <PAT>
+pulumi config set --secret github:antonNanoclawPAT <PAT>
 
 # Optional (defaults shown)
 pulumi config set gcp:region us-central1

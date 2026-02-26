@@ -1,12 +1,12 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as tls from "@pulumi/tls";
 import * as github from "@pulumi/github";
-import { githubToken, githubOwner, githubRepo } from "./config";
+import { antonNanoclawPAT, githubOwner, githubRepo } from "./config";
 
 // GitHub provider — authenticated with a PAT
 export const githubProvider = new github.Provider("github", {
   owner: githubOwner,
-  token: githubToken,
+  token: antonNanoclawPAT,
 });
 
 // ED25519 key pair for the deploy key

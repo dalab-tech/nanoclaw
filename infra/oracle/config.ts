@@ -10,6 +10,7 @@ import { provider } from "./provider";
 // =============================================================================
 
 const ociConfig = new pulumi.Config("oci");
+const githubConfig = new pulumi.Config("github");
 const nanoclawConfig = new pulumi.Config("nanoclaw");
 
 // Compartment = tenancy OCID for free tier
@@ -19,9 +20,9 @@ export const compartmentId = ociConfig.require("tenancyOcid");
 // GitHub deploy key + git config for the cloud instance
 // =============================================================================
 
-// githubToken is the 'anton-dalab-pat' fine-grained PAT
-// from the anton-dalab GitHub account (needs repo access to nanoclaw + anton)
-export const githubToken = nanoclawConfig.requireSecret("githubToken");
+// GitHub PAT — 'anton-nanoclaw-pat' fine-grained PAT from the lamson-dev
+// GitHub account (needs repo access to nanoclaw + anton)
+export const antonNanoclawPAT = githubConfig.requireSecret("antonNanoclawPAT");
 export const githubOwner = nanoclawConfig.get("githubOwner") || "dalab-tech";
 export const githubRepo = nanoclawConfig.get("githubRepo") || "nanoclaw";
 export const gitUserName = nanoclawConfig.get("gitUserName") || "Anton";
@@ -29,8 +30,7 @@ export const gitUserEmail = nanoclawConfig.get("gitUserEmail") || "anton@dalab.t
 export const deployUser = nanoclawConfig.get("deployUser") || "anton";
 
 // App environment variables (written to ~/nanoclaw/.env)
-// envGithubToken uses 'env' prefix to avoid collision with githubToken (Pulumi's PAT)
-export const envGithubToken = nanoclawConfig.getSecret("envGithubToken") ?? pulumi.output("");
+export const githubToken = nanoclawConfig.getSecret("githubToken") ?? pulumi.output("");
 export const githubUsername = nanoclawConfig.get("githubUsername") || "anton-dalab";
 export const claudeCodeOauthToken = nanoclawConfig.getSecret("claudeCodeOauthToken") ?? pulumi.output("");
 export const slackBotToken = nanoclawConfig.getSecret("slackBotToken") ?? pulumi.output("");

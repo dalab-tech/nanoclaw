@@ -5,6 +5,7 @@ import * as pulumi from "@pulumi/pulumi";
 // =============================================================================
 
 const gcpConfig = new pulumi.Config("gcp");
+const githubConfig = new pulumi.Config("github");
 const nanoclawConfig = new pulumi.Config("nanoclaw");
 
 export const projectId = gcpConfig.require("project");
@@ -14,9 +15,9 @@ export const machineType = nanoclawConfig.get("machineType") || "e2-micro";
 export const diskSizeGb = parseInt(nanoclawConfig.get("diskSizeGb") || "20", 10);
 export const diskType = nanoclawConfig.get("diskType") || "pd-standard";
 
-// GitHub config — githubToken is the 'anton-dalab-pat' fine-grained PAT
-// from the anton-dalab GitHub account (needs repo access to nanoclaw + anton)
-export const githubToken = nanoclawConfig.requireSecret("githubToken");
+// GitHub PAT — 'anton-nanoclaw-pat' fine-grained PAT from the lamson-dev
+// GitHub account (needs repo access to nanoclaw + anton)
+export const antonNanoclawPAT = githubConfig.requireSecret("antonNanoclawPAT");
 export const githubOwner = nanoclawConfig.get("githubOwner") || "dalab-tech";
 export const githubRepo = nanoclawConfig.get("githubRepo") || "nanoclaw";
 export const gitUserName = nanoclawConfig.get("gitUserName") || "Anton";
@@ -24,8 +25,7 @@ export const gitUserEmail = nanoclawConfig.get("gitUserEmail") || "anton@dalab.t
 export const deployUser = nanoclawConfig.get("deployUser") || "anton";
 
 // App environment variables (written to ~/nanoclaw/.env)
-// envGithubToken uses 'env' prefix to avoid collision with githubToken (Pulumi's PAT)
-export const envGithubToken = nanoclawConfig.getSecret("envGithubToken") ?? pulumi.output("");
+export const githubToken = nanoclawConfig.getSecret("githubToken") ?? pulumi.output("");
 export const githubUsername = nanoclawConfig.get("githubUsername") || "anton-dalab";
 export const claudeCodeOauthToken = nanoclawConfig.getSecret("claudeCodeOauthToken") ?? pulumi.output("");
 export const slackBotToken = nanoclawConfig.getSecret("slackBotToken") ?? pulumi.output("");
