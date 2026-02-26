@@ -22,7 +22,7 @@ import { dotenvContent } from "./dotenv";
 
 // Cloud-init script — base script + status script injected + git config section appended
 const baseCloudInit = fs.readFileSync(
-  path.join(__dirname, "cloud-init.sh"),
+  path.join(__dirname, "..", "cloud-init.sh"),
   "utf-8"
 );
 const statusScript = fs.readFileSync(

@@ -5,8 +5,10 @@ set -euo pipefail
 while fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do sleep 5; done
 while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 5; done
 
-# Detect OS user
-if id ubuntu &>/dev/null; then USER_NAME=ubuntu; else USER_NAME=opc; fi
+# Detect OS user (ubuntu on GCP/OCI-Ubuntu, opc on Oracle Linux, root otherwise)
+if id ubuntu &>/dev/null; then USER_NAME=ubuntu
+elif id opc &>/dev/null; then USER_NAME=opc
+else USER_NAME=root; fi
 USER_HOME=$(eval echo ~$USER_NAME)
 
 # Detect package manager (Oracle Linux = dnf, Ubuntu = apt)
@@ -19,12 +21,12 @@ if command -v dnf &>/dev/null; then
   systemctl start docker
   usermod -aG docker $USER_NAME
 
-  # --- Node.js 20 LTS ---
-  curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
+  # --- Node.js 22 LTS ---
+  curl -fsSL https://rpm.nodesource.com/setup_22.x | bash -
   dnf install -y nodejs
 
   # --- Essential tools ---
-  dnf install -y git tmux htop unzip cron stress-ng mc jq vim-minimal
+  dnf install -y git tmux htop unzip sqlite3 cron stress-ng mc jq vim-minimal
 
   # --- GitHub CLI ---
   dnf install -y 'dnf-command(config-manager)'
@@ -36,6 +38,11 @@ if command -v dnf &>/dev/null; then
   firewall-cmd --permanent --add-service=http
   firewall-cmd --permanent --add-service=https
   firewall-cmd --reload
+
+  # --- Fail2ban ---
+  dnf install -y fail2ban || true
+  systemctl enable fail2ban || true
+  systemctl start fail2ban || true
 else
   # --- Docker CE (Ubuntu) ---
   apt-get update
@@ -54,12 +61,12 @@ else
   systemctl start docker
   usermod -aG docker $USER_NAME
 
-  # --- Node.js 20 LTS ---
-  curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+  # --- Node.js 22 LTS ---
+  curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
   apt-get install -y nodejs
 
   # --- Essential tools ---
-  apt-get install -y git tmux htop unzip cron stress-ng mc jq vim-tiny
+  apt-get install -y git tmux htop unzip sqlite3 cron stress-ng mc jq vim-tiny
 
   # --- GitHub CLI ---
   curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
@@ -158,13 +165,15 @@ ALL_USERS="$ADMINS $TENANTS"
 
 for NEW_USER in $ALL_USERS; do
   useradd -m -s /bin/bash "$NEW_USER"
-  usermod -aG docker "$NEW_USER"
+  usermod -aG docker,systemd-journal "$NEW_USER"
   # Copy SSH authorized keys from default OS user
   mkdir -p "/home/$NEW_USER/.ssh"
-  cp "$USER_HOME/.ssh/authorized_keys" "/home/$NEW_USER/.ssh/authorized_keys"
+  if [ -f "$USER_HOME/.ssh/authorized_keys" ]; then
+    cp "$USER_HOME/.ssh/authorized_keys" "/home/$NEW_USER/.ssh/authorized_keys"
+    chmod 600 "/home/$NEW_USER/.ssh/authorized_keys"
+  fi
   chown -R "$NEW_USER:$NEW_USER" "/home/$NEW_USER/.ssh"
   chmod 700 "/home/$NEW_USER/.ssh"
-  chmod 600 "/home/$NEW_USER/.ssh/authorized_keys"
   # Workspace
   mkdir -p "/home/$NEW_USER/workspace"
   chown "$NEW_USER:$NEW_USER" "/home/$NEW_USER/workspace"
@@ -330,9 +339,12 @@ done
 # is managed by deploy-remote.sh so it can be updated without instance replacement.
 
 # --- Anti-idle cron (prevents OCI free-tier reclamation) ---
-systemctl enable cron 2>/dev/null || true
-systemctl start cron 2>/dev/null || true
-su - $USER_NAME -c '(crontab -l 2>/dev/null; echo "*/5 * * * * /usr/bin/stress-ng --cpu 2 --timeout 90s > /dev/null 2>&1") | crontab -'
+# Only activates on OCI instances; harmless no-op on GCP.
+if id opc &>/dev/null || [ -f /etc/oracle-cloud-agent/agent.yml ]; then
+  systemctl enable cron 2>/dev/null || true
+  systemctl start cron 2>/dev/null || true
+  su - $USER_NAME -c '(crontab -l 2>/dev/null; echo "*/5 * * * * /usr/bin/stress-ng --cpu 2 --timeout 90s > /dev/null 2>&1") | crontab -'
+fi
 
 # --- Status script (injected by Pulumi from infra/status.sh) ---
 # __STATUS_SCRIPT_PLACEHOLDER__

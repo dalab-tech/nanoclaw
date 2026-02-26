@@ -176,7 +176,6 @@ infra/oracle/
   network.ts             # VCN, subnet, security list, IGW, routes
   compute.ts             # Instance + image lookup + cloud-init
   index.ts               # Stack outputs (publicIp, sshCommand, etc.)
-  cloud-init.sh          # Bootstrap: Docker, Node, Claude Code, firewall, swap, anti-idle, users, status
   setup.sh               # Interactive setup for new stacks
   retry.sh               # Retry loop for capacity-constrained regions
   connect-nanoclaw.sh    # SSH connect with status dashboard

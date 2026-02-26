@@ -146,6 +146,5 @@ infra/gcp/
   github.ts                Deploy key (ED25519)
   github-environments.ts   Push WIF vars to GitHub environment
   compute.ts               GCE instance + cloud-init + instance IAM
-  cloud-init.sh            Bootstrap: Docker, Node, users, firewall, systemd
   index.ts                 Stack outputs
 ```

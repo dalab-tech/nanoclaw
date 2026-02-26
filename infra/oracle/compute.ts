@@ -49,7 +49,7 @@ export const resolvedImageId: pulumi.Input<string> = imageId
 
 // Cloud-init script — base script + status script injected + deploy key section appended
 const baseCloudInit = fs.readFileSync(
-  path.join(__dirname, "cloud-init.sh"),
+  path.join(__dirname, "..", "cloud-init.sh"),
   "utf-8"
 );
 const statusScript = fs.readFileSync(

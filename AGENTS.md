@@ -35,6 +35,7 @@ anton/
     gcp/              # Pulumi stack — GCP compute, network, IAM, GitHub integration
     oracle/           # Pulumi stack — OCI compute, network, GitHub integration
     cloudflare/       # Pulumi stack — DNS, email routing, redirects
+    cloud-init.sh     # Shared cloud-init provisioning (used by GCP + OCI stacks)
     status.sh         # Single-source status script (deployed to instances)
   scripts/
     deploy-remote.sh  # Runs on instance during deploy (pull, build, restart)
@@ -56,7 +57,7 @@ anton/
 
 ### Cloud-Init
 
-- `infra/oracle/cloud-init.sh` and `infra/gcp/cloud-init.sh` are base provisioning scripts.
+- `infra/cloud-init.sh` is the shared base provisioning script used by both GCP and OCI stacks.
 - The status script is **not** embedded — a `# __STATUS_SCRIPT_PLACEHOLDER__` marker gets replaced by Pulumi at build time with the contents of `infra/status.sh`.
 - The deploy key section is appended by Pulumi (not a placeholder — it's concatenated after cloud-init).
 - If you modify cloud-init, the change only takes effect on **new instances** (instance replacement or fresh provision). For running instances, use the deploy workflow or manual SSH.
