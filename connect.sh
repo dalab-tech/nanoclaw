@@ -1,10 +1,26 @@
 #!/bin/bash
-# Usage: ./connect.sh [target] [user]
-#   target: gcp | oci (default)
-#   user:   son (default) | anton
+# Usage: ./connect.sh <user> [--gcp|--oci]
+#   user:   son | anton (required)
+#   target: --oci (default) | --gcp
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-TARGET="${1:-oci}"
-USER="${2:-son}"
+
+if [ -z "$1" ] || [[ "$1" == --* ]]; then
+  echo "Usage: ./connect.sh <user> [--gcp|--oci]"
+  echo "  user:   son | anton"
+  echo "  target: --oci (default) | --gcp"
+  exit 1
+fi
+
+USER="$1"
+TARGET="oci"
+shift
+for arg in "$@"; do
+  case "$arg" in
+    --gcp) TARGET="gcp" ;;
+    --oci) TARGET="oci" ;;
+    *) echo "Unknown flag: $arg"; exit 1 ;;
+  esac
+done
 
 # Solarized Light theme to distinguish SSH from local terminal
 set_theme() {
@@ -52,9 +68,5 @@ case "$TARGET" in
     trap reset_theme EXIT INT TERM
 
     ssh -t "$USER@$IP" "cd ~/workspace && status 2>/dev/null; exec \$SHELL -l"
-    ;;
-  *)
-    echo "Usage: ./connect.sh [gcp|oci] [son|anton]"
-    exit 1
     ;;
 esac

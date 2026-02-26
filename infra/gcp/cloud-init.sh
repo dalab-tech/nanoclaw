@@ -327,57 +327,8 @@ WantedBy=multi-user.target
 UNIT
 systemctl daemon-reload
 
-# --- Status script (available to all users) ---
-cat > /usr/local/bin/status << 'STATUS'
-#!/bin/bash
-G="\033[0;32m" R="\033[0;31m" Y="\033[1;33m" C="\033[0;36m" N="\033[0m"
-ok() { echo -e "  ${G}✓${N} $1"; }
-warn() { echo -e "  ${Y}!${N} $1"; }
-fail() { echo -e "  ${R}✗${N} $1"; }
-
-echo -e "${C}nanoclaw status${N}"
-
-# Check nanoclaw services (template instances like nanoclaw@anton)
-NCLAW_SERVICES=$(systemctl list-units --type=service --state=running --no-legend 'nanoclaw@*' 2>/dev/null | awk '{print $1}')
-if [ -n "$NCLAW_SERVICES" ]; then
-  for SVC in $NCLAW_SERVICES; do
-    PERSONA=$(echo "$SVC" | sed 's/nanoclaw@\(.*\)\.service/\1/')
-    PID=$(systemctl show -p MainPID "$SVC" --value)
-    UPTIME=$(ps -o etime= -p "$PID" 2>/dev/null | xargs)
-    ok "$SVC running (pid $PID, uptime $UPTIME)"
-
-    # Channel status from logs since service started
-    SVC_START=$(systemctl show -p ActiveEnterTimestamp "$SVC" --value 2>/dev/null)
-    LOGS=$(sudo journalctl -u "$SVC" --since="$SVC_START" --no-pager --output=cat 2>/dev/null)
-    for CH in Slack GitHub WhatsApp; do
-      if echo "$LOGS" | grep -q "$CH channel connected"; then
-        ok "  $CH connected"
-      elif echo "$LOGS" | grep -q "$CH.*skipping"; then
-        warn "  $CH not configured"
-      elif echo "$LOGS" | grep -q "$CH.*error"; then
-        fail "  $CH error"
-      fi
-    done
-  done
-else
-  warn "no nanoclaw services running"
-fi
-
-if systemctl is-active --quiet docker 2>/dev/null; then
-  AGENT_COUNT=$(docker ps --filter "name=nanoclaw-" --format '{{.Names}}' 2>/dev/null | wc -l)
-  ok "docker running ($AGENT_COUNT agent containers)"
-else
-  fail "docker not running"
-fi
-
-MEM=$(free -h | awk '/Mem:/{printf "%s/%s", $3, $2}')
-DISK=$(df -h / | awk 'NR==2{printf "%s/%s (%s)", $3, $2, $5}')
-LOAD=$(uptime | awk -F"load average: " '{print $2}')
-echo -e "\n${C}resources${N}"
-echo "  mem: $MEM  disk: $DISK  load: $LOAD"
-echo ""
-STATUS
-chmod +x /usr/local/bin/status
+# --- Status script (injected by Pulumi from infra/status.sh) ---
+# __STATUS_SCRIPT_PLACEHOLDER__
 
 # --- GitHub deploy key + repo clone (appended by Pulumi) ---
 

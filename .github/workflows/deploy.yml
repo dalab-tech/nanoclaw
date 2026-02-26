@@ -28,7 +28,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          sparse-checkout: scripts/deploy-remote.sh
+          sparse-checkout: |
+            scripts/deploy-remote.sh
+            infra/status.sh
           sparse-checkout-cone-mode: false
 
       - name: Authenticate to GCP via WIF
@@ -39,6 +41,14 @@ jobs:
 
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy status script
+        run: |
+          gcloud compute ssh ${{ vars.GCP_VM_INSTANCE_NAME }} \
+            --zone=${{ vars.GCP_ZONE }} \
+            --tunnel-through-iap \
+            --command="sudo tee /usr/local/bin/status > /dev/null && sudo chmod +x /usr/local/bin/status" \
+            < infra/status.sh
 
       - name: Deploy via IAP tunnel
         run: |
@@ -65,8 +75,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          sparse-checkout: scripts/deploy-remote.sh
+          sparse-checkout: |
+            scripts/deploy-remote.sh
+            infra/status.sh
           sparse-checkout-cone-mode: false
+
+      - name: Deploy status script
+        run: |
+          echo "${{ secrets.OCI_DEPLOY_SSH_KEY }}" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
+          SSH_CMD="ssh -o StrictHostKeyChecking=no -i /tmp/deploy_key ${{ vars.OCI_DEPLOY_USER }}@${{ vars.OCI_DEPLOY_HOST }}"
+          cat infra/status.sh | $SSH_CMD "sudo tee /usr/local/bin/status > /dev/null && sudo chmod +x /usr/local/bin/status"
+          rm -f /tmp/deploy_key
 
       - name: Deploy via SSH
         run: |
