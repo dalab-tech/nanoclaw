@@ -124,11 +124,24 @@ if [ -n "$FOREIGN" ]; then
   echo "$FOREIGN" | while read -r c; do fail "  $c"; done
 fi
 
-# ── Claude auth ─────────────────────────────────────────────────
-if bash -l -c "claude auth status" 2>&1 | grep -q '"loggedIn": true'; then
-  ok "claude authenticated"
+# ── Dependencies ───────────────────────────────────────────────
+echo -e "\n${C}dependencies${N}"
+for cmd in node npm git jq curl; do
+  if command -v "$cmd" >/dev/null 2>&1; then
+    ok "$cmd $(command $cmd --version 2>&1 | head -1 | grep -oP '[\d]+\.[\d]+\.[\d]+')"
+  else
+    fail "$cmd not installed"
+  fi
+done
+
+if bash -l -c "command -v claude" >/dev/null 2>&1; then
+  if bash -l -c "claude auth status" 2>&1 | grep -q '"loggedIn": true'; then
+    ok "claude authenticated"
+  else
+    warn "claude installed but not authenticated — run: claude auth login"
+  fi
 else
-  warn "claude not authenticated — run: claude auth login"
+  fail "claude not installed — run: curl -fsSL https://claude.ai/install.sh | sh"
 fi
 
 # ── Anti-idle (informational, no sudo) ──────────────────────────

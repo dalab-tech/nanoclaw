@@ -36,6 +36,7 @@ jobs:
           sparse-checkout: |
             scripts/deploy-remote.sh
             infra/status.sh
+            brain/
           sparse-checkout-cone-mode: false
 
       - name: Authenticate to GCP via WIF
@@ -64,10 +65,15 @@ jobs:
             --command="sudo -u $TENANT bash -c 'mkdir -p ~/.local/bin && cat > ~/.local/bin/status && chmod +x ~/.local/bin/status'" \
             < infra/status.sh
 
+          # Deploy brain/ for anton user only (clean sync)
+          if [ "$TENANT" = "anton" ]; then
+            tar -cf - -C brain . | $GCP_SSH \
+              --command="sudo -u $TENANT bash -c 'rm -rf ~/.$TENANT/brain && mkdir -p ~/.$TENANT/brain && tar -xf - -C ~/.$TENANT/brain'"
+          fi
+
           # Run deploy (deploy-remote.sh auto-detects admin mode, uses sudo -u)
-          REPO_URL="https://github.com/${{ github.repository }}.git"
           $GCP_SSH \
-            --command="TENANT=$TENANT REPO_URL=$REPO_URL bash -s" \
+            --command="TENANT=$TENANT bash -s" \
             < scripts/deploy-remote.sh
         env:
           NANOCLAW_DOTENV: ${{ secrets.NANOCLAW_DOTENV }}
@@ -85,6 +91,7 @@ jobs:
           sparse-checkout: |
             scripts/deploy-remote.sh
             infra/status.sh
+            brain/
           sparse-checkout-cone-mode: false
 
       - name: Deploy
@@ -100,9 +107,13 @@ jobs:
           # Deploy status script to ~/.local/bin/
           cat infra/status.sh | $OCI_SSH "mkdir -p ~/.local/bin && cat > ~/.local/bin/status && chmod +x ~/.local/bin/status"
 
+          # Deploy brain/ for anton user only (clean sync)
+          if [ "$TENANT" = "anton" ]; then
+            tar -cf - -C brain . | $OCI_SSH "rm -rf ~/.$TENANT/brain && mkdir -p ~/.$TENANT/brain && tar -xf - -C ~/.$TENANT/brain"
+          fi
+
           # Run deploy (deploy-remote.sh auto-detects tenant mode, no sudo)
-          REPO_URL="https://github.com/${{ github.repository }}.git"
-          cat scripts/deploy-remote.sh | $OCI_SSH "TENANT=$TENANT REPO_URL=$REPO_URL bash -s"
+          cat scripts/deploy-remote.sh | $OCI_SSH "TENANT=$TENANT bash -s"
 
           rm -f /tmp/deploy_key
         env:

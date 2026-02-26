@@ -8,7 +8,7 @@
 set -e
 
 TENANT="${TENANT:-$(whoami)}"
-REPO_URL="${REPO_URL:-https://github.com/dalab-tech/nanoclaw.git}"
+REPO_URL="${REPO_URL:-git@github.com:dalab-tech/nanoclaw.git}"
 
 # Auto-detect: running as tenant or as admin?
 if [ "$(whoami)" = "$TENANT" ]; then
