@@ -6,7 +6,7 @@
       "description": "Repos and working directories"
     },
     {
-      "path": "~/.__TENANT__/brain",
+      "path": "~/.config/brain",
       "allowReadWrite": false,
       "description": "Anton's identity and context (read-only)"
     }

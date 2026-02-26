@@ -20,7 +20,8 @@ else
 fi
 
 NCLAW_DIR="$TENANT_HOME/nanoclaw"
-ENV_SOURCE="$TENANT_HOME/.$TENANT/.env.nanoclaw"
+NCLAW_CONFIG="$TENANT_HOME/.config/nanoclaw"
+ENV_SOURCE="$NCLAW_CONFIG/.env"
 SVC_DIR="$TENANT_HOME/.config/systemd/user"
 TENANT_UID=$(id -u "$TENANT")
 
@@ -51,19 +52,15 @@ UNIT
 $RUN ln -sf "$SVC_DIR/nanoclaw.service" "$SVC_DIR/default.target.wants/nanoclaw.service"
 
 # GITHUB_TOKEN in .profile so gh/git auth works in interactive sessions
-if ! grep -q 'GITHUB_TOKEN.*\.env\.nanoclaw' "$TENANT_HOME/.profile" 2>/dev/null; then
+if ! grep -q 'GITHUB_TOKEN.*\.config/nanoclaw' "$TENANT_HOME/.profile" 2>/dev/null; then
   $RUN tee -a "$TENANT_HOME/.profile" > /dev/null << 'PROFILE'
 
 # Auto-export GITHUB_TOKEN from nanoclaw config
-if [ -f ~/.$USER/.env.nanoclaw ]; then
-  export GITHUB_TOKEN=$(grep -m1 '^GITHUB_TOKEN=' ~/.$USER/.env.nanoclaw | cut -d= -f2-)
+if [ -f ~/.config/nanoclaw/.env ]; then
+  export GITHUB_TOKEN=$(grep -m1 '^GITHUB_TOKEN=' ~/.config/nanoclaw/.env | cut -d= -f2-)
 fi
 PROFILE
 fi
-
-# Convenience symlinks in ~/.<tenant>/
-$RUN mkdir -p "$TENANT_HOME/.$TENANT"
-$RUN ln -sf "$TENANT_HOME/.config/nanoclaw/mount-allowlist.json" "$TENANT_HOME/.$TENANT/mount-allowlist.json"
 
 # ── Clone / update nanoclaw ───────────────────────────────────
 
@@ -73,7 +70,7 @@ if [ ! -d "$NCLAW_DIR" ]; then
   $RUN git clone "$REPO_URL" "$NCLAW_DIR"
 fi
 
-# Symlink .env from ~/.<tenant>/.env.nanoclaw into the repo
+# Symlink .env from ~/.config/nanoclaw/.env into the repo
 if [ -f "$ENV_SOURCE" ]; then
   $RUN ln -sf "$ENV_SOURCE" "$NCLAW_DIR/.env"
 fi
