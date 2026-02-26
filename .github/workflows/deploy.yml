@@ -11,6 +11,10 @@ on:
           - oci
           - both
         default: gcp
+      tenant:
+        description: OS username to deploy as
+        type: string
+        default: anton
   repository_dispatch:
     types: [nanoclaw-updated]
 
@@ -52,17 +56,18 @@ jobs:
 
       - name: Deploy via IAP tunnel
         run: |
+          TENANT="${{ inputs.tenant || 'anton' }}"
           # Write .env
           gcloud compute ssh ${{ vars.GCP_VM_INSTANCE_NAME }} \
             --zone=${{ vars.GCP_ZONE }} \
             --tunnel-through-iap \
-            --command="sudo -u anton bash -c 'cat > ~/nanoclaw/.env && chmod 600 ~/nanoclaw/.env'" \
+            --command="sudo -u $TENANT bash -c 'cat > ~/nanoclaw/.env && chmod 600 ~/nanoclaw/.env'" \
             <<< "$NANOCLAW_DOTENV"
           # Run deploy
           gcloud compute ssh ${{ vars.GCP_VM_INSTANCE_NAME }} \
             --zone=${{ vars.GCP_ZONE }} \
             --tunnel-through-iap \
-            --command="$(cat scripts/deploy-remote.sh)"
+            --command="$(cat scripts/deploy-remote.sh) $TENANT"
         env:
           NANOCLAW_DOTENV: ${{ secrets.NANOCLAW_DOTENV }}
 
@@ -90,13 +95,14 @@ jobs:
 
       - name: Deploy via SSH
         run: |
+          TENANT="${{ inputs.tenant || 'anton' }}"
           echo "${{ secrets.OCI_DEPLOY_SSH_KEY }}" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
           SSH_CMD="ssh -o StrictHostKeyChecking=no -i /tmp/deploy_key ${{ vars.OCI_DEPLOY_USER }}@${{ vars.OCI_DEPLOY_HOST }}"
           # Write .env
-          echo "$NANOCLAW_DOTENV" | $SSH_CMD "sudo -u anton bash -c 'cat > ~/nanoclaw/.env && chmod 600 ~/nanoclaw/.env'"
+          echo "$NANOCLAW_DOTENV" | $SSH_CMD "sudo -u $TENANT bash -c 'cat > ~/nanoclaw/.env && chmod 600 ~/nanoclaw/.env'"
           # Run deploy
-          $SSH_CMD "$(cat scripts/deploy-remote.sh)"
+          $SSH_CMD "$(cat scripts/deploy-remote.sh) $TENANT"
           rm -f /tmp/deploy_key
         env:
           NANOCLAW_DOTENV: ${{ secrets.NANOCLAW_DOTENV }}
