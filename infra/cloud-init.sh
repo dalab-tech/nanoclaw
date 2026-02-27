@@ -19,11 +19,9 @@ swapon /swapfile
 echo '/swapfile none swap sw 0 0' >> /etc/fstab
 
 # --- Users ---
-# Admins: human operators who manage the instance (get sudo)
-# Tenants: bot users running sandboxed nanoclaw instances (no sudo)
+# Only admin user created at first boot. Tenants added later via provision-tenant.sh.
 ADMINS="son"
-TENANTS="anton"
-ALL_USERS="$ADMINS $TENANTS"
+ALL_USERS="$ADMINS"
 
 for NEW_USER in $ALL_USERS; do
   useradd -m -s /bin/bash "$NEW_USER"
@@ -42,7 +40,7 @@ for NEW_USER in $ALL_USERS; do
   su - "$NEW_USER" -c "ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N '' -C '${NEW_USER}@nanoclaw'"
 done
 
-# Sudo only for admins — tenant users are fully sandboxed
+# Sudo for admins
 for ADMIN in $ADMINS; do
   echo "$ADMIN ALL=(ALL) NOPASSWD:ALL" > "/etc/sudoers.d/$ADMIN"
   chmod 440 "/etc/sudoers.d/$ADMIN"

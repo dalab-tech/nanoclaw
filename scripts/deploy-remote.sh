@@ -66,7 +66,7 @@ fi
 # ── Clone / update nanoclaw ───────────────────────────────────
 
 # Initial clone if needed
-if [ ! -d "$NCLAW_DIR" ]; then
+if ! $RUN test -d "$NCLAW_DIR"; then
   echo "Initial clone..."
   $RUN git clone "$REPO_URL" "$NCLAW_DIR"
 fi

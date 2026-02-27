@@ -19,10 +19,10 @@ When a task touches both repos (e.g. adding a new env var that requires both a P
 
 When working on infra that serves nanoclaw (deploy scripts, cloud-init, systemd units, env injection), you may need to understand nanoclaw's structure. Read `../nanoclaw/CLAUDE.md` for application context. Key facts:
 
-- Node.js process, runs as `anton` user on the instance
-- Systemd service: `nanoclaw@anton.service`
-- Working directory: `/home/anton/nanoclaw`
-- Config: `.env` file in the working directory
+- Node.js process, runs as a tenant user (e.g. `anton`) on the instance
+- Systemd user service: `nanoclaw.service` (per-user)
+- Working directory: `~/nanoclaw`
+- Config: `~/.config/nanoclaw/.env` (symlinked into repo)
 - Containers: Docker-based agent sandboxes (`nanoclaw-*`)
 - Channels: WhatsApp, Slack, GitHub
 
@@ -60,9 +60,10 @@ anton/
 ### Cloud-Init
 
 - Provisioning is split into two scripts: `infra/cloud-init.sh` (first-boot only) and `infra/cloud-setup.sh` (idempotent, runnable standalone).
+- Cloud-init only creates the admin user (`son`). Tenant users are provisioned later via `scripts/provision-tenant.sh`.
 - `cloud-init.sh` has a `# __CLOUD_SETUP_PLACEHOLDER__` marker where Pulumi inlines `cloud-setup.sh`.
 - `cloud-setup.sh` has a `# __STATUS_SCRIPT_PLACEHOLDER__` marker where Pulumi injects `infra/status.sh`.
-- The deploy key section is appended by Pulumi (not a placeholder — it's concatenated after cloud-init).
+- The deploy key section is appended by Pulumi (not a placeholder — it's concatenated after cloud-init). Only the admin (`son`) gets the deploy key at first boot; `provision-tenant.sh` copies it to tenants.
 - Changes to `cloud-init.sh` only take effect on **new instances**. Changes to `cloud-setup.sh` can be applied to running instances: `scp` it over and `sudo bash` it.
 
 ### Deploy Workflow
@@ -78,6 +79,7 @@ anton/
 
 - `infra/status.sh` is the **single source of truth** for the instance health check. Edit it here; it propagates to cloud-init (via Pulumi) and running instances (via deploy workflow).
 - `scripts/deploy-remote.sh` runs on the instance — pulls nanoclaw, builds, restarts the service.
+- `scripts/provision-tenant.sh` is the **single path** for tenant setup: creates user, copies deploy key from admin, sets port, installs Claude Code, configures git.
 - `connect.sh` and `sup` are local convenience scripts, not deployed.
 
 ### Cloudflare Tunnel

@@ -13,8 +13,7 @@ USER_HOME=$(eval echo ~$USER_NAME)
 
 # Variables re-defined here so cloud-setup.sh works standalone (outside cloud-init)
 ADMINS="son"
-TENANTS="anton"
-ALL_USERS="$ADMINS $TENANTS"
+ALL_USERS="$ADMINS"
 
 # Detect package manager (Oracle Linux = dnf, Ubuntu = apt)
 if command -v dnf &>/dev/null; then

@@ -13,16 +13,12 @@ import {
   ocpus,
   memoryInGbs,
   bootVolumeSizeInGbs,
-  deployUser,
-  githubOwner,
-  githubRepo,
   gitUserName,
   gitUserEmail,
   cloudflareTunnelToken,
 } from "./config";
 import { subnet } from "./network";
 import { privateKeyOpenssh } from "./github";
-import { dotenvContent } from "./dotenv";
 
 // Image lookup — Oracle Linux for micro (guaranteed free-tier compatible), Ubuntu for ARM
 const imageOs = isFlexShape ? "Canonical Ubuntu" : "Oracle Linux";
@@ -70,13 +66,12 @@ const cloudInit = baseCloudInit
   );
 
 const userData = pulumi
-  .all([privateKeyOpenssh, gitUserName, gitUserEmail, dotenvContent, cloudflareTunnelToken])
-  .apply(([privKey, userName, userEmail, dotenv, cfToken]) => {
-    const repoUrl = `git@github.com:${githubOwner}/${githubRepo}.git`;
+  .all([privateKeyOpenssh, gitUserName, gitUserEmail, cloudflareTunnelToken])
+  .apply(([privKey, userName, userEmail, cfToken]) => {
 
     const deployKeySection = `
-# Written by Pulumi — deploy key + repo for all operators
-for REPO_USER in ${deployUser} son; do
+# Written by Pulumi — deploy key for admin (tenants get it via provision-tenant.sh)
+for REPO_USER in son; do
 mkdir -p /home/$REPO_USER/.ssh
 cat > /home/$REPO_USER/.ssh/github_deploy_key << 'DEPLOY_KEY'
 ${privKey.trim()}
@@ -93,16 +88,9 @@ SSHCONFIG
 chmod 600 /home/$REPO_USER/.ssh/config
 chown $REPO_USER:$REPO_USER /home/$REPO_USER/.ssh/config
 
-su - $REPO_USER -c "git clone ${repoUrl} /home/$REPO_USER/${githubRepo}" || true
 su - $REPO_USER -c "git config --global user.name '${userName}'"
 su - $REPO_USER -c "git config --global user.email '${userEmail}'"
 done
-
-# Written by Pulumi — nanoclaw app secrets (tenant user only)
-cat > /home/${deployUser}/${githubRepo}/.env << 'DOTENV'
-${dotenv}DOTENV
-chmod 600 /home/${deployUser}/${githubRepo}/.env
-chown ${deployUser}:${deployUser} /home/${deployUser}/${githubRepo}/.env
 `;
 
     const cfSection = cfToken ? `

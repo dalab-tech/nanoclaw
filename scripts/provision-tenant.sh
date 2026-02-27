@@ -85,14 +85,22 @@ else
   echo "  Generated SSH key"
 fi
 
-# ── 5. Workspace ─────────────────────────────────────────────────────
+# ── 5. GitHub deploy key (copy from admin) ───────────────────────────
+ADMIN_KEY="/home/son/.ssh/github_deploy_key"
+if [ -f "$ADMIN_KEY" ]; then
+  cp "$ADMIN_KEY" "$USER_HOME/.ssh/github_deploy_key"
+  chmod 600 "$USER_HOME/.ssh/github_deploy_key"
+  cp "/home/son/.ssh/config" "$USER_HOME/.ssh/config"
+  chmod 600 "$USER_HOME/.ssh/config"
+  chown "$USERNAME:$USERNAME" "$USER_HOME/.ssh/github_deploy_key" "$USER_HOME/.ssh/config"
+  echo "  Copied GitHub deploy key from admin"
+else
+  echo "  Warning: no deploy key found at $ADMIN_KEY"
+fi
+
+# ── 6. Workspace ─────────────────────────────────────────────────────
 mkdir -p "$USER_HOME/workspace"
 chown "$USERNAME:$USERNAME" "$USER_HOME/workspace"
-
-# ── 6. Midnight Commander config ─────────────────────────────────────
-mkdir -p "$USER_HOME/.config/mc"
-echo -e "[Midnight-Commander]\nskin=warm256" > "$USER_HOME/.config/mc/ini"
-chown -R "$USERNAME:$USERNAME" "$USER_HOME/.config"
 
 # ── 7. Lingering ─────────────────────────────────────────────────────
 loginctl enable-linger "$USERNAME"
@@ -113,14 +121,18 @@ mkdir -p "$USER_HOME/.config/nanoclaw"
 echo "PORT=$PORT" > "$USER_HOME/.config/nanoclaw/port.env"
 chown -R "$USERNAME:$USERNAME" "$USER_HOME/.config/nanoclaw"
 
+# ── 11. Git config ───────────────────────────────────────────────────
+su - "$USERNAME" -c "git config --global user.name '$USERNAME'"
+su - "$USERNAME" -c "git config --global user.email '${USERNAME}@nanoclaw'"
+
+# ── 12. Claude Code CLI ─────────────────────────────────────────────
+su - "$USERNAME" -c "curl -fsSL https://claude.ai/install.sh | bash" || true
+
 echo ""
 echo "Tenant $USERNAME provisioned successfully (port $PORT)"
 echo ""
 echo "Next steps:"
-echo "  1. Add GitHub deploy key:"
-echo "     cat $USER_HOME/.ssh/id_ed25519.pub"
+echo "  1. Add route to infra/cloudflare/tunnel.config.ts and run pulumi up"
 echo ""
-echo "  2. Add route to infra/cloudflare/tunnel.config.ts and run pulumi up"
-echo ""
-echo "  3. Deploy nanoclaw:"
+echo "  2. Deploy nanoclaw:"
 echo "     gh workflow run deploy.yml -f tenant=$USERNAME -f target=gcp"
