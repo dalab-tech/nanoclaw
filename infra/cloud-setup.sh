@@ -167,15 +167,14 @@ cat > /etc/profile.d/local-bin.sh << 'LOCALBIN'
 export PATH="$HOME/.local/bin:$PATH"
 LOCALBIN
 
-# --- Claude Code CLI (native binary, auto-updates) ---
-curl -fsSL https://claude.ai/install.sh | bash
-
 # --- User config (idempotent) ---
 for NEW_USER in $ALL_USERS; do
   usermod -aG docker,systemd-journal "$NEW_USER"
   mkdir -p "/home/$NEW_USER/.config"
   chown -R "$NEW_USER:$NEW_USER" "/home/$NEW_USER/.config"
   loginctl enable-linger "$NEW_USER"
+  # Claude Code CLI (native binary, auto-updates) — install per user
+  su - "$NEW_USER" -c "curl -fsSL https://claude.ai/install.sh | bash" || true
 done
 
 # --- Sudo (admins only, idempotent — overwrites) ---
