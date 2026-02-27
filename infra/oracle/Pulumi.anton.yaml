@@ -20,3 +20,6 @@ config:
     secure: v1:16umMBi6g7fBQ5Kf:6kQIhgURIIS2Xb1/IR1DR2RQKCVE2g1qEkoQI88L5PBGRIGiTkHg/4PfSmySe3vN6Bg+UPa1+6RkMcLa2fR7V2DGyRFEurQV25I1ma6N1tXfU75VkuDX2phGChOohk0ghollEPf06GaC4UEcgVuQemA07DbqayDr3Z1VKMmLn6pg/8fOAJgpd8iVGcmaaei0IsxIZIyZ/700J8PNHCb42V+7cREf1Tw2MUVLiVFEl8ErgAsKTYQasS0pVkYuhIkM5zy2Xg==
   nanoclaw:webAuthToken:
     secure: v1:Mx+YQg9O81L5kCho:AxB7wYrBN3l8FGgtxbmyCyTB9rBNOr/DnzGNx3xbc8U/O6V82CT68DKnt7X4rK8=
+  nanoclaw:stixMcpUrl: https://stix.dalab.lol/mcp
+  nanoclaw:stixApiKey:
+    secure: v1:c38HxOx7P1wApXx/:o+c7g1FpsAAbSsajzz+RA2kVC8LRIebWHA1eC06VKbhtk3WsjxjPQap0buABpNKFwA==
