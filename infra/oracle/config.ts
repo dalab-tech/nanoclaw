@@ -37,7 +37,7 @@ export const slackBotToken = nanoclawConfig.getSecret("slackBotToken") ?? pulumi
 export const slackAppToken = nanoclawConfig.getSecret("slackAppToken") ?? pulumi.output("");
 export const assistantName = nanoclawConfig.get("assistantName") || "Anton";
 export const webAuthToken = nanoclawConfig.getSecret("webAuthToken") ?? pulumi.output("");
-export const stixWorkerUrl = nanoclawConfig.get("stixWorkerUrl") || "";
+export const stixMcpUrl = nanoclawConfig.get("stixMcpUrl") || "";
 export const stixApiKey = nanoclawConfig.getSecret("stixApiKey") ?? pulumi.output("");
 
 // Cloudflare Tunnel token (copied from cloudflare stack output after tunnel creation)

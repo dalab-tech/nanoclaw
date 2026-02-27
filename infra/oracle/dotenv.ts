@@ -7,7 +7,7 @@ import {
   slackAppToken,
   assistantName,
   webAuthToken,
-  stixWorkerUrl,
+  stixMcpUrl,
   stixApiKey,
 } from "./config";
 
@@ -24,7 +24,7 @@ export const dotenvContent: pulumi.Output<string> = pulumi
       `SLACK_APP_TOKEN=${slackApp}`,
       `ASSISTANT_NAME=${assistantName}`,
       `WEB_AUTH_TOKEN=${webAuth}`,
-      `STIX_WORKER_URL=${stixWorkerUrl}`,
+      `STIX_MCP_URL=${stixMcpUrl}`,
       `STIX_API_KEY=${stixKey}`,
     ].join("\n") + "\n"
   );
