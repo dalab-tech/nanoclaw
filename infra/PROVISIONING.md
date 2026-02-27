@@ -1,5 +1,29 @@
 # Tunnel Operations
 
+## TL;DR
+
+**New tenant:**
+```bash
+# 1. Add route in infra/cloudflare/tunnel.config.ts, then:
+cd infra/cloudflare && pulumi up
+# 2. Provision user on instance:
+sudo ./provision-tenant.sh bob --port 3002
+# 3. Deploy nanoclaw:
+gh workflow run deploy.yml -f tenant=bob -f target=nanoclaw-gcp
+```
+
+**Change port for existing tenant:**
+```bash
+# 1. Update port on instance:
+sudo ./provision-tenant.sh anton --port 3200
+# 2. Update route in infra/cloudflare/tunnel.config.ts, then:
+cd infra/cloudflare && pulumi up
+# 3. Restart on instance:
+sudo ./restart-tenant.sh anton
+```
+
+---
+
 Step-by-step runbooks for provisioning instances and tenants with Cloudflare Tunnel.
 
 ## Prerequisites
@@ -97,7 +121,7 @@ Check existing assignments:
 
 ```bash
 # On the instance:
-grep -r PORT /home/*/.config/nanoclaw/port.env 2>/dev/null
+grep -r WEB_CHANNEL_PORT /home/*/.config/nanoclaw/port.env 2>/dev/null
 ```
 
 ### 2. Add route to tunnel config
@@ -245,14 +269,14 @@ sudo systemctl daemon-reload && sudo systemctl enable cloudflared && sudo system
 ```bash
 ssh son@<instance>
 sudo mkdir -p /home/anton/.config/nanoclaw
-echo "PORT=3001" | sudo tee /home/anton/.config/nanoclaw/port.env
+echo "WEB_CHANNEL_PORT=3001" | sudo tee /home/anton/.config/nanoclaw/port.env
 sudo chown anton:anton /home/anton/.config/nanoclaw/port.env
 ```
 
-Then redeploy to pick up the new EnvironmentFile:
+Then restart to pick up the new port:
 
 ```bash
-gh workflow run deploy.yml -f target=nanoclaw-gcp
+sudo ./restart-tenant.sh anton
 ```
 
 ---
@@ -270,7 +294,7 @@ sudo journalctl -u cloudflared --no-pager -n 50
 
 **Port conflict**: `provision-tenant.sh` checks for collisions. To audit manually:
 ```bash
-grep -r PORT /home/*/.config/nanoclaw/port.env
+grep -r WEB_CHANNEL_PORT /home/*/.config/nanoclaw/port.env
 ```
 
 **Tunnel picks up new routes automatically**: After `pulumi up` on the cloudflare stack, the managed config updates immediately — no need to restart cloudflared.

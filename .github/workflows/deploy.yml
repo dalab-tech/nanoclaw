@@ -52,6 +52,7 @@ jobs:
           sparse-checkout: |
             scripts/deploy-remote.sh
             scripts/provision-tenant.sh
+            scripts/restart-tenant.sh
             infra/status.sh
             brain/
             config/
@@ -102,10 +103,13 @@ jobs:
                 --command="sudo -u $TENANT bash -c 'rm -rf ~/.config/brain && mkdir -p ~/.config/brain && tar -xf - -C ~/.config/brain'"
             fi
 
-            # Deploy provision-tenant.sh to admin home (sudo ./provision-tenant.sh <user> --port <port>)
+            # Deploy admin scripts to son's home
             $GCP_SSH \
               --command="sudo -u son bash -c 'cat > ~/provision-tenant.sh && chmod +x ~/provision-tenant.sh'" \
               < scripts/provision-tenant.sh
+            $GCP_SSH \
+              --command="sudo -u son bash -c 'cat > ~/restart-tenant.sh && chmod +x ~/restart-tenant.sh'" \
+              < scripts/restart-tenant.sh
 
             # Write Cloudflare Tunnel token and restart cloudflared
             if [ -n "$TUNNEL_TOKEN" ]; then
@@ -137,8 +141,9 @@ jobs:
               tar -cf - -C brain . | $OCI_SSH "sudo -u $TENANT bash -c 'rm -rf ~/.config/brain && mkdir -p ~/.config/brain && tar -xf - -C ~/.config/brain'"
             fi
 
-            # Deploy provision-tenant.sh to admin home (sudo ./provision-tenant.sh <user> --port <port>)
+            # Deploy admin scripts to son's home
             cat scripts/provision-tenant.sh | $OCI_SSH "cat > ~/provision-tenant.sh && chmod +x ~/provision-tenant.sh"
+            cat scripts/restart-tenant.sh | $OCI_SSH "cat > ~/restart-tenant.sh && chmod +x ~/restart-tenant.sh"
 
             # Write Cloudflare Tunnel token and restart cloudflared
             if [ -n "$TUNNEL_TOKEN" ]; then
