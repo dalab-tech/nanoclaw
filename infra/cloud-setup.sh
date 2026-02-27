@@ -30,7 +30,7 @@ if command -v dnf &>/dev/null; then
   dnf install -y nodejs
 
   # --- Essential tools ---
-  dnf install -y git tmux htop unzip sqlite3 cron stress-ng mc jq vim-minimal
+  dnf install -y git tmux htop unzip sqlite3 cron stress-ng mc jq vim-minimal make gcc-c++
 
   # --- GitHub CLI ---
   dnf install -y 'dnf-command(config-manager)'
@@ -76,7 +76,7 @@ else
   apt-get install -y nodejs
 
   # --- Essential tools ---
-  apt-get install -y git tmux htop unzip sqlite3 cron stress-ng mc jq vim-tiny
+  apt-get install -y git tmux htop unzip sqlite3 cron stress-ng mc jq vim-tiny build-essential
 
   # --- GitHub CLI ---
   curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
