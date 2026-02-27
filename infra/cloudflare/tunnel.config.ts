@@ -34,7 +34,7 @@ export const instances = {
  *  Port: localhost port the tenant's nanoclaw listens on
  *  Instance: key from `instances` above */
 export const routes = [
-  { service: "stix-api", tenant: "anton-gcp", port: 3001, instance: "nanoclaw-gcp" },
-  { service: "stix-api", tenant: "anton", port: 3001, instance: "nanoclaw-oci" },
+  { service: "stix-api", tenant: "anton-gcp", port: 3200, instance: "nanoclaw-gcp" },
+  { service: "stix-api", tenant: "anton", port: 3300, instance: "nanoclaw-oci" },
   // { service: "other",    tenant: "anton", port: 4001, instance: "nanoclaw-oci" },
 ] as const;
