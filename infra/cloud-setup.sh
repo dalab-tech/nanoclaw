@@ -162,6 +162,11 @@ xterm-ghostty|ghostty|Ghostty,
 	u8=\E[?%[;0123456789]c, u9=\E[c, vpa=\E[%i%p1%dd,
 TERMINFO
 
+# --- ~/.local/bin on PATH (for Claude Code, status script, etc.) ---
+cat > /etc/profile.d/local-bin.sh << 'LOCALBIN'
+export PATH="$HOME/.local/bin:$PATH"
+LOCALBIN
+
 # --- Claude Code CLI (native binary, auto-updates) ---
 curl -fsSL https://claude.ai/install.sh | bash
 
