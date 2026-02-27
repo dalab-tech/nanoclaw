@@ -4,6 +4,10 @@ ok() { echo -e "  ${G}✓${N} $1"; }
 warn() { echo -e "  ${Y}!${N} $1"; }
 fail() { echo -e "  ${R}✗${N} $1"; }
 
+# Ensure systemctl --user works even in non-login shells (SSH, cron, etc.)
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}"
+
 PERSONA=$(whoami)
 NCLAW_DIR="$HOME/nanoclaw"
 
@@ -21,7 +25,7 @@ fi
 
 # Multiple nanoclaw processes for this user
 NCLAW_PIDS=$(pgrep -u "$PERSONA" -f 'node.*dist/index\.js' 2>/dev/null)
-NCLAW_PID_COUNT=$(echo "$NCLAW_PIDS" | grep -c . 2>/dev/null || echo 0)
+NCLAW_PID_COUNT=$(echo "$NCLAW_PIDS" | grep -c '[0-9]' 2>/dev/null || echo 0)
 if [ "$NCLAW_PID_COUNT" -gt 1 ]; then
   fail "ILLEGAL: $NCLAW_PID_COUNT nanoclaw processes running (expected at most 1)"
   echo "$NCLAW_PIDS" | while read -r p; do fail "  pid $p: $(ps -o args= -p "$p" 2>/dev/null)"; done
@@ -139,7 +143,7 @@ fi
 echo -e "\n${C}dependencies${N}"
 for cmd in node npm git jq curl; do
   if command -v "$cmd" >/dev/null 2>&1; then
-    ok "$cmd $(command $cmd --version 2>&1 | head -1 | grep -oP '[\d]+\.[\d]+\.[\d]+')"
+    ok "$cmd $(command $cmd --version 2>&1 | head -1 | grep -oP '[\d]+\.[\d]+\.[\d]+' | head -1)"
   else
     fail "$cmd not installed"
   fi
