@@ -121,8 +121,8 @@ jobs:
             chmod 600 /tmp/deploy_key
             OCI_SSH="ssh -o StrictHostKeyChecking=no -i /tmp/deploy_key ${TENANT}@${{ vars.OCI_DEPLOY_HOST }}"
 
-            # Run cloud-setup.sh (needs sudo — SSH as admin)
-            OCI_SSH_ADMIN="ssh -o StrictHostKeyChecking=no -i /tmp/deploy_key son@${{ vars.OCI_DEPLOY_HOST }}"
+            # Run cloud-setup.sh (needs sudo — SSH as default OS user who always has sudo)
+            OCI_SSH_ADMIN="ssh -o StrictHostKeyChecking=no -i /tmp/deploy_key ubuntu@${{ vars.OCI_DEPLOY_HOST }}"
             cat infra/cloud-setup.sh | $OCI_SSH_ADMIN "sudo bash -s"
 
             # Write .env to ~/.config/nanoclaw/ (outside repo dir, avoids git clone conflict)
