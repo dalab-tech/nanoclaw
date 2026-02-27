@@ -40,7 +40,7 @@ fi
 # ── Port collision check ─────────────────────────────────────────────
 for portfile in /home/*/.config/nanoclaw/port.env; do
   [ -f "$portfile" ] || continue
-  EXISTING_PORT=$(grep -m1 '^PORT=' "$portfile" 2>/dev/null | cut -d= -f2-)
+  EXISTING_PORT=$(grep -m1 '^WEB_CHANNEL_PORT=' "$portfile" 2>/dev/null | cut -d= -f2- || true)
   EXISTING_USER=$(echo "$portfile" | cut -d/ -f3)
   if [ "$EXISTING_PORT" = "$PORT" ] && [ "$EXISTING_USER" != "$USERNAME" ]; then
     echo "Error: port $PORT already assigned to $EXISTING_USER (in $portfile)"
