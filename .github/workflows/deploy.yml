@@ -7,10 +7,10 @@ on:
         description: Deploy target
         type: choice
         options:
-          - gcp
-          - oci
-          - both
-        default: gcp
+          - nanoclaw-gcp
+          - nanoclaw-oci
+          - all
+        default: nanoclaw-gcp
       tenant:
         description: OS username to deploy as
         type: string
@@ -23,13 +23,29 @@ permissions:
   contents: read
 
 jobs:
-  deploy-gcp:
-    # GCP: SSH as SA user (OS Login, has sudo), delegate to tenant via sudo -u
-    if: >-
-      github.event_name == 'repository_dispatch' ||
-      inputs.target == 'gcp' || inputs.target == 'both'
+  setup:
     runs-on: ubuntu-latest
-    environment: gcp
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - id: set-matrix
+        run: |
+          # Instance list — keep in sync with infra/cloudflare/tunnel.config.ts
+          ALL='["nanoclaw-gcp","nanoclaw-oci"]'
+          TARGET="${{ inputs.target || 'all' }}"
+          if [ "$TARGET" = "all" ]; then
+            echo "matrix={\"instance\":$ALL}" >> "$GITHUB_OUTPUT"
+          else
+            echo "matrix={\"instance\":[\"$TARGET\"]}" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy:
+    needs: setup
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
+      fail-fast: false
+    environment: ${{ matrix.instance }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -41,99 +57,87 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Authenticate to GCP via WIF
+        if: vars.DEPLOY_PROVIDER == 'gcp'
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GCP_CICD_SERVICE_ACCOUNT }}
 
       - name: Set up gcloud
+        if: vars.DEPLOY_PROVIDER == 'gcp'
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Deploy
         run: |
           TENANT="${{ inputs.tenant || 'anton' }}"
-          VM="${{ vars.GCP_VM_INSTANCE_NAME }}"
-          ZONE="${{ vars.GCP_ZONE }}"
-          GCP_SSH="gcloud compute ssh ${VM} --zone=${ZONE} --tunnel-through-iap"
 
-          # Fix .config ownership in case cloud-init left it root-owned
-          $GCP_SSH --command="sudo chown $TENANT:$TENANT /home/$TENANT/.config 2>/dev/null || true"
+          if [ "${{ vars.DEPLOY_PROVIDER }}" = "gcp" ]; then
+            # GCP: SSH as SA user (OS Login, has sudo), delegate to tenant via sudo -u
+            VM="${{ vars.GCP_VM_INSTANCE_NAME }}"
+            ZONE="${{ vars.GCP_ZONE }}"
+            GCP_SSH="gcloud compute ssh ${VM} --zone=${ZONE} --tunnel-through-iap"
 
-          # Write .env to ~/.config/nanoclaw/ (outside repo dir, avoids git clone conflict)
-          $GCP_SSH \
-            --command="sudo -u $TENANT bash -c 'mkdir -p ~/.config/nanoclaw && cat > ~/.config/nanoclaw/.env && chmod 600 ~/.config/nanoclaw/.env'" \
-            <<< "$NANOCLAW_DOTENV"
+            # Fix .config ownership in case cloud-init left it root-owned
+            $GCP_SSH --command="sudo chown $TENANT:$TENANT /home/$TENANT/.config 2>/dev/null || true"
 
-          # Deploy status script to tenant's ~/.local/bin/
-          $GCP_SSH \
-            --command="sudo -u $TENANT bash -c 'mkdir -p ~/.local/bin && cat > ~/.local/bin/status && chmod +x ~/.local/bin/status'" \
-            < infra/status.sh
+            # Write .env to ~/.config/nanoclaw/ (outside repo dir, avoids git clone conflict)
+            $GCP_SSH \
+              --command="sudo -u $TENANT bash -c 'mkdir -p ~/.config/nanoclaw && cat > ~/.config/nanoclaw/.env && chmod 600 ~/.config/nanoclaw/.env'" \
+              <<< "$NANOCLAW_DOTENV"
 
-          # Deploy mount-allowlist
-          $GCP_SSH \
-            --command="sudo -u $TENANT bash -c 'cat > ~/.config/nanoclaw/mount-allowlist.json'" \
-            < config/mount-allowlist.json
+            # Deploy status script to tenant's ~/.local/bin/
+            $GCP_SSH \
+              --command="sudo -u $TENANT bash -c 'mkdir -p ~/.local/bin && cat > ~/.local/bin/status && chmod +x ~/.local/bin/status'" \
+              < infra/status.sh
 
-          # Deploy brain/ for anton user only (clean sync)
-          if [ "$TENANT" = "anton" ]; then
-            tar -cf - -C brain . | $GCP_SSH \
-              --command="sudo -u $TENANT bash -c 'rm -rf ~/.config/brain && mkdir -p ~/.config/brain && tar -xf - -C ~/.config/brain'"
+            # Deploy mount-allowlist
+            $GCP_SSH \
+              --command="sudo -u $TENANT bash -c 'cat > ~/.config/nanoclaw/mount-allowlist.json'" \
+              < config/mount-allowlist.json
+
+            # Deploy brain/ for anton user only (clean sync)
+            if [ "$TENANT" = "anton" ]; then
+              tar -cf - -C brain . | $GCP_SSH \
+                --command="sudo -u $TENANT bash -c 'rm -rf ~/.config/brain && mkdir -p ~/.config/brain && tar -xf - -C ~/.config/brain'"
+            fi
+
+            # Write Cloudflare Tunnel token and restart cloudflared
+            if [ -n "$TUNNEL_TOKEN" ]; then
+              $GCP_SSH --command="sudo bash -c 'mkdir -p /etc/cloudflared && printf \"TUNNEL_TOKEN=%s\n\" \"$TUNNEL_TOKEN\" > /etc/cloudflared/token.env && chmod 600 /etc/cloudflared/token.env && systemctl daemon-reload && systemctl enable cloudflared && systemctl restart cloudflared'"
+            fi
+
+            # Run deploy (deploy-remote.sh auto-detects admin mode, uses sudo -u)
+            $GCP_SSH \
+              --command="TENANT=$TENANT bash -s" \
+              < scripts/deploy-remote.sh
+
+          else
+            # OCI: SSH as tenant directly (no sudo needed)
+            echo "${{ secrets.OCI_DEPLOY_SSH_KEY }}" > /tmp/deploy_key
+            chmod 600 /tmp/deploy_key
+            OCI_SSH="ssh -o StrictHostKeyChecking=no -i /tmp/deploy_key ${TENANT}@${{ vars.OCI_DEPLOY_HOST }}"
+
+            # Write .env to ~/.config/nanoclaw/ (outside repo dir, avoids git clone conflict)
+            echo "$NANOCLAW_DOTENV" | $OCI_SSH "mkdir -p ~/.config/nanoclaw && cat > ~/.config/nanoclaw/.env && chmod 600 ~/.config/nanoclaw/.env"
+
+            # Deploy status script to ~/.local/bin/
+            cat infra/status.sh | $OCI_SSH "mkdir -p ~/.local/bin && cat > ~/.local/bin/status && chmod +x ~/.local/bin/status"
+
+            # Deploy mount-allowlist
+            cat config/mount-allowlist.json | $OCI_SSH "cat > ~/.config/nanoclaw/mount-allowlist.json"
+
+            # Deploy brain/ for anton user only (clean sync)
+            if [ "$TENANT" = "anton" ]; then
+              tar -cf - -C brain . | $OCI_SSH "rm -rf ~/.config/brain && mkdir -p ~/.config/brain && tar -xf - -C ~/.config/brain"
+            fi
+
+            # Run deploy (deploy-remote.sh auto-detects tenant mode, no sudo)
+            cat scripts/deploy-remote.sh | $OCI_SSH "TENANT=$TENANT bash -s"
           fi
-
-          # Write Cloudflare Tunnel token and restart cloudflared
-          if [ -n "$TUNNEL_TOKEN" ]; then
-            $GCP_SSH --command="sudo bash -c 'mkdir -p /etc/cloudflared && printf \"TUNNEL_TOKEN=%s\n\" \"$TUNNEL_TOKEN\" > /etc/cloudflared/token.env && chmod 600 /etc/cloudflared/token.env && systemctl daemon-reload && systemctl enable cloudflared && systemctl restart cloudflared'"
-          fi
-
-          # Run deploy (deploy-remote.sh auto-detects admin mode, uses sudo -u)
-          $GCP_SSH \
-            --command="TENANT=$TENANT bash -s" \
-            < scripts/deploy-remote.sh
         env:
           NANOCLAW_DOTENV: ${{ secrets.NANOCLAW_DOTENV }}
           TUNNEL_TOKEN: ${{ secrets.TUNNEL_TOKEN }}
 
-  deploy-oci:
-    # OCI: SSH as tenant directly (no sudo needed)
-    if: >-
-      github.event_name == 'repository_dispatch' ||
-      inputs.target == 'oci' || inputs.target == 'both'
-    runs-on: ubuntu-latest
-    environment: oci
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          sparse-checkout: |
-            scripts/deploy-remote.sh
-            infra/status.sh
-            brain/
-            config/
-          sparse-checkout-cone-mode: false
-
-      - name: Deploy
-        run: |
-          TENANT="${{ inputs.tenant || 'anton' }}"
-          echo "${{ secrets.OCI_DEPLOY_SSH_KEY }}" > /tmp/deploy_key
-          chmod 600 /tmp/deploy_key
-          OCI_SSH="ssh -o StrictHostKeyChecking=no -i /tmp/deploy_key ${TENANT}@${{ vars.OCI_DEPLOY_HOST }}"
-
-          # Write .env to ~/.config/nanoclaw/ (outside repo dir, avoids git clone conflict)
-          echo "$NANOCLAW_DOTENV" | $OCI_SSH "mkdir -p ~/.config/nanoclaw && cat > ~/.config/nanoclaw/.env && chmod 600 ~/.config/nanoclaw/.env"
-
-          # Deploy status script to ~/.local/bin/
-          cat infra/status.sh | $OCI_SSH "mkdir -p ~/.local/bin && cat > ~/.local/bin/status && chmod +x ~/.local/bin/status"
-
-          # Deploy mount-allowlist
-          cat config/mount-allowlist.json | $OCI_SSH "cat > ~/.config/nanoclaw/mount-allowlist.json"
-
-          # Deploy brain/ for anton user only (clean sync)
-          if [ "$TENANT" = "anton" ]; then
-            tar -cf - -C brain . | $OCI_SSH "rm -rf ~/.config/brain && mkdir -p ~/.config/brain && tar -xf - -C ~/.config/brain"
-          fi
-
-          # Run deploy (deploy-remote.sh auto-detects tenant mode, no sudo)
-          cat scripts/deploy-remote.sh | $OCI_SSH "TENANT=$TENANT bash -s"
-
-          rm -f /tmp/deploy_key
-        env:
-          NANOCLAW_DOTENV: ${{ secrets.NANOCLAW_DOTENV }}
+      - name: Cleanup
+        if: always()
+        run: rm -f /tmp/deploy_key

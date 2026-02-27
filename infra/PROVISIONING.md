@@ -60,7 +60,13 @@ cd infra/gcp
 pulumi config set --secret nanoclaw:cloudflareTunnelToken "$TOKEN"
 ```
 
-### 5. Deploy the instance
+### 5. Add instance to deploy workflow
+
+Edit `.github/workflows/deploy.yml`:
+- Add the instance name (e.g. `nanoclaw-gcp-staging`) to the `options` list under `inputs.target`
+- Add it to the `ALL` array in the setup job
+
+### 6. Deploy the instance
 
 ```bash
 pulumi up
@@ -68,7 +74,7 @@ pulumi up
 
 The instance boots with cloud-init, which installs cloudflared and creates the systemd unit. The Pulumi-appended section writes the tunnel token and starts cloudflared.
 
-### 6. Verify
+### 7. Verify
 
 SSH to the instance and check:
 
@@ -138,7 +144,7 @@ Add this as a deploy key to the nanoclaw repo on GitHub (read-only).
 ### 6. Deploy nanoclaw
 
 ```bash
-gh workflow run deploy.yml -f tenant=bob -f target=gcp
+gh workflow run deploy.yml -f tenant=bob -f target=nanoclaw-gcp
 ```
 
 ### 7. Verify
@@ -184,9 +190,14 @@ cd infra/oracle && pulumi config set --secret nanoclaw:cloudflareTunnelToken "$T
 Since cloud-init only runs on new instances, install manually:
 
 ```bash
-# GCP (Ubuntu):
+# GCP (Ubuntu, amd64):
 ssh son@<gcp-instance>
 curl -fsSL "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb" -o /tmp/cloudflared.deb
+sudo dpkg -i /tmp/cloudflared.deb
+
+# OCI (Ubuntu, arm64):
+ssh son@<oci-instance>
+curl -fsSL "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64.deb" -o /tmp/cloudflared.deb
 sudo dpkg -i /tmp/cloudflared.deb
 
 # Create systemd unit (same as cloud-init):
@@ -212,11 +223,22 @@ sudo systemctl daemon-reload
 
 ### 4. Deploy to write token and start cloudflared
 
+**GCP**: The deploy workflow writes the tunnel token (has sudo):
+
 ```bash
-gh workflow run deploy.yml -f target=gcp
+gh workflow run deploy.yml -f target=nanoclaw-gcp
 ```
 
-The deploy workflow writes the tunnel token to `/etc/cloudflared/token.env` and restarts cloudflared.
+**OCI**: The deploy workflow doesn't have sudo, so write the token manually:
+
+```bash
+ssh son@<oci-instance>
+TOKEN="<paste from pulumi stack output tunnel_nanoclaw_oci_token --show-secrets>"
+sudo mkdir -p /etc/cloudflared
+echo "TUNNEL_TOKEN=$TOKEN" | sudo tee /etc/cloudflared/token.env
+sudo chmod 600 /etc/cloudflared/token.env
+sudo systemctl daemon-reload && sudo systemctl enable cloudflared && sudo systemctl restart cloudflared
+```
 
 ### 5. Set port for existing tenant
 
@@ -230,7 +252,7 @@ sudo chown anton:anton /home/anton/.config/nanoclaw/port.env
 Then redeploy to pick up the new EnvironmentFile:
 
 ```bash
-gh workflow run deploy.yml -f target=gcp
+gh workflow run deploy.yml -f target=nanoclaw-gcp
 ```
 
 ---

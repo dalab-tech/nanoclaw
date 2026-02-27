@@ -11,19 +11,19 @@ import { dotenvContent } from "./dotenv";
 
 const workflowRepo = "anton";
 
-const ghEnv = new github.RepositoryEnvironment("oci-env", {
+const ghEnv = new github.RepositoryEnvironment("nanoclaw-oci-env", {
   repository: workflowRepo,
-  environment: "oci",
+  environment: "nanoclaw-oci",
 }, { provider: githubProvider });
 
 const opts = { provider: githubProvider, dependsOn: [ghEnv] };
 
 const envVar = (slug: string, variableName: string, value: string | pulumi.Output<string>) =>
   new github.ActionsEnvironmentVariable(
-    `gh-oci-${slug}`,
+    `gh-nanoclaw-oci-${slug}`,
     {
       repository: workflowRepo,
-      environment: "oci",
+      environment: "nanoclaw-oci",
       variableName,
       value,
     },
@@ -32,16 +32,17 @@ const envVar = (slug: string, variableName: string, value: string | pulumi.Outpu
 
 const envSecret = (slug: string, secretName: string, plaintextValue: pulumi.Output<string>) =>
   new github.ActionsEnvironmentSecret(
-    `gh-oci-${slug}`,
+    `gh-nanoclaw-oci-${slug}`,
     {
       repository: workflowRepo,
-      environment: "oci",
+      environment: "nanoclaw-oci",
       secretName,
       plaintextValue,
     },
     opts
   );
 
+envVar("deploy-provider", "DEPLOY_PROVIDER", "oci");
 envVar("deploy-host", "OCI_DEPLOY_HOST", instance.publicIp);
 envVar("deploy-user", "OCI_DEPLOY_USER", deployUser);
 

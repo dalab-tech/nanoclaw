@@ -15,25 +15,26 @@ import { cloudflareTunnelToken } from "./config";
 // Environments live in the anton repo (where the deploy workflow is)
 const workflowRepo = "anton";
 
-const ghEnv = new github.RepositoryEnvironment("gcp-env", {
+const ghEnv = new github.RepositoryEnvironment("nanoclaw-gcp-env", {
   repository: workflowRepo,
-  environment: "gcp",
+  environment: "nanoclaw-gcp",
 }, { provider: githubProvider });
 
 const opts = { provider: githubProvider, dependsOn: [ghEnv] };
 
 const envVar = (slug: string, variableName: string, value: string | pulumi.Output<string>) =>
   new github.ActionsEnvironmentVariable(
-    `gh-gcp-${slug}`,
+    `gh-nanoclaw-gcp-${slug}`,
     {
       repository: workflowRepo,
-      environment: "gcp",
+      environment: "nanoclaw-gcp",
       variableName,
       value,
     },
     opts
   );
 
+envVar("deploy-provider", "DEPLOY_PROVIDER", "gcp");
 envVar("project-id", "GCP_PROJECT_ID", projectId);
 envVar("zone", "GCP_ZONE", zone);
 envVar("wip", "GCP_WORKLOAD_IDENTITY_PROVIDER", workloadIdentityProvider.name);
@@ -42,10 +43,10 @@ envVar("vm-instance", "GCP_VM_INSTANCE_NAME", instance.name);
 
 const envSecret = (slug: string, secretName: string, plaintextValue: pulumi.Output<string>) =>
   new github.ActionsEnvironmentSecret(
-    `gh-gcp-${slug}`,
+    `gh-nanoclaw-gcp-${slug}`,
     {
       repository: workflowRepo,
-      environment: "gcp",
+      environment: "nanoclaw-gcp",
       secretName,
       plaintextValue,
     },

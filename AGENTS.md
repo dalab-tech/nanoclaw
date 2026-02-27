@@ -65,9 +65,10 @@ anton/
 
 ### Deploy Workflow
 
-- `.github/workflows/deploy.yml` handles deployments to both GCP and OCI.
+- `.github/workflows/deploy.yml` handles deployments to all instances.
 - Triggers: `workflow_dispatch` (manual) or `repository_dispatch` (nanoclaw-updated event).
-- The workflow deploys `infra/status.sh` to instances on every run, then deploys nanoclaw.
+- **Structure**: a `setup` job builds a matrix from `inputs.target`, then a single `deploy` job runs per instance. Each instance has a GitHub environment (`nanoclaw-gcp`, `nanoclaw-oci`) with a `DEPLOY_PROVIDER` variable that controls provider-specific steps.
+- Targets use instance names from `tunnel.config.ts`: `nanoclaw-gcp`, `nanoclaw-oci`, or `all`.
 - GCP connects via IAP tunnel (`gcloud compute ssh`). OCI connects via direct SSH with a deploy key.
 
 ### Shared Scripts
@@ -96,20 +97,22 @@ Nanoclaw's web channel uses Cloudflare Tunnel for inbound HTTP — outbound-only
 **Onboarding a new tenant**:
 1. Add route to `tunnel.config.ts`, run `pulumi up` on cloudflare stack (creates DNS + ingress)
 2. SSH to instance, run `sudo provision-tenant.sh <user> --port <port>` (creates OS user, sets port)
-3. Deploy nanoclaw: `gh workflow run deploy.yml -f tenant=<user> -f target=gcp`
+3. Deploy nanoclaw: `gh workflow run deploy.yml -f tenant=<user> -f target=nanoclaw-gcp`
 
 **Adding a new instance**:
 1. Add to `instances` in `tunnel.config.ts`, add routes
 2. `pulumi up` on cloudflare stack → creates tunnel (secret auto-generated)
 3. Copy token to compute stack: `pulumi config set --secret nanoclaw:cloudflareTunnelToken "$(pulumi stack output tunnel_<name>_token --show-secrets)"`
-4. `pulumi up` on compute stack → instance gets cloudflared + token
+4. New Pulumi stack's `github-environments.ts` creates environment with `DEPLOY_PROVIDER` var
+5. Add instance name to `deploy.yml` `options` list and `ALL` array in setup job
+6. `pulumi up` on compute stack → instance gets cloudflared + token
 
 ## Operational Rules
 
 1. **Never hardcode secrets** in scripts or cloud-init. Use Pulumi config for provisioning-time secrets, GitHub environment secrets for deploy-time secrets.
 2. **Test cloud-init changes** by running `pulumi preview` on both stacks — confirm the diff looks right.
 3. **Status script changes** propagate two ways: next `pulumi up` (new instances) and next deploy workflow run (existing instances). No manual SSH needed.
-4. **Deploy workflow changes** — validate YAML syntax. The GCP and OCI jobs should stay structurally parallel (same steps, different connection methods).
+4. **Deploy workflow changes** — validate YAML syntax. The workflow uses a single matrix job with provider-conditional steps. When adding a new instance, add it to the `options` list and the `ALL` array in the setup job.
 5. **Don't modify nanoclaw source** from this repo. If a task requires nanoclaw changes, note what's needed and handle it in `../nanoclaw`.
 
 ## Commit Style
