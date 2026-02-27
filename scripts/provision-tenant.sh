@@ -118,7 +118,7 @@ fi
 mkdir -p "$USER_HOME/.config/nanoclaw"
 
 # ── 10. Port assignment ──────────────────────────────────────────────
-echo "PORT=$PORT" > "$USER_HOME/.config/nanoclaw/port.env"
+echo "WEB_CHANNEL_PORT=$PORT" > "$USER_HOME/.config/nanoclaw/port.env"
 chown -R "$USERNAME:$USERNAME" "$USER_HOME/.config/nanoclaw"
 
 # ── 11. Git config ───────────────────────────────────────────────────
