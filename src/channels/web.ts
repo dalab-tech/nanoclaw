@@ -9,7 +9,11 @@ import { serve } from '@hono/node-server';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 
-import { ASSISTANT_NAME, MAIN_GROUP_FOLDER, WEB_CHANNEL_PORT } from '../config.js';
+import {
+  ASSISTANT_NAME,
+  MAIN_GROUP_FOLDER,
+  WEB_CHANNEL_PORT,
+} from '../config.js';
 import {
   getDatabase,
   getAllWebSessions,
