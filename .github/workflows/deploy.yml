@@ -118,29 +118,35 @@ jobs:
               < scripts/deploy-remote.sh
 
           else
-            # OCI: SSH as tenant directly (no sudo needed)
+            # OCI: SSH as admin (son), delegate to tenant via sudo -u
             echo "${{ secrets.OCI_DEPLOY_SSH_KEY }}" > /tmp/deploy_key
             chmod 600 /tmp/deploy_key
-            OCI_SSH="ssh -o StrictHostKeyChecking=no -i /tmp/deploy_key ${TENANT}@${{ vars.OCI_DEPLOY_HOST }}"
+            OCI_SSH="ssh -o StrictHostKeyChecking=no -i /tmp/deploy_key son@${{ vars.OCI_DEPLOY_HOST }}"
 
-            # Deploy cloud-setup.sh to /tmp (tenant has no sudo to run it, but admin can)
-            cat infra/cloud-setup.sh | $OCI_SSH "cat > /tmp/cloud-setup.sh && chmod +x /tmp/cloud-setup.sh"
+            # Run cloud-setup.sh (idempotent system-level setup)
+            cat infra/cloud-setup.sh | $OCI_SSH "cat > /tmp/cloud-setup.sh"
+            $OCI_SSH "sudo bash /tmp/cloud-setup.sh"
 
             # Write .env to ~/.config/nanoclaw/ (outside repo dir, avoids git clone conflict)
-            echo "$NANOCLAW_DOTENV" | $OCI_SSH "mkdir -p ~/.config/nanoclaw && cat > ~/.config/nanoclaw/.env && chmod 600 ~/.config/nanoclaw/.env"
+            echo "$NANOCLAW_DOTENV" | $OCI_SSH "sudo -u $TENANT bash -c 'mkdir -p ~/.config/nanoclaw && cat > ~/.config/nanoclaw/.env && chmod 600 ~/.config/nanoclaw/.env'"
 
-            # Deploy status script to ~/.local/bin/
-            cat infra/status.sh | $OCI_SSH "mkdir -p ~/.local/bin && cat > ~/.local/bin/status && chmod +x ~/.local/bin/status"
+            # Deploy status script to tenant's ~/.local/bin/
+            cat infra/status.sh | $OCI_SSH "sudo -u $TENANT bash -c 'mkdir -p ~/.local/bin && cat > ~/.local/bin/status && chmod +x ~/.local/bin/status'"
 
             # Deploy mount-allowlist
-            cat config/mount-allowlist.json | $OCI_SSH "cat > ~/.config/nanoclaw/mount-allowlist.json"
+            cat config/mount-allowlist.json | $OCI_SSH "sudo -u $TENANT bash -c 'cat > ~/.config/nanoclaw/mount-allowlist.json'"
 
             # Deploy brain/ for anton user only (clean sync)
             if [ "$TENANT" = "anton" ]; then
-              tar -cf - -C brain . | $OCI_SSH "rm -rf ~/.config/brain && mkdir -p ~/.config/brain && tar -xf - -C ~/.config/brain"
+              tar -cf - -C brain . | $OCI_SSH "sudo -u $TENANT bash -c 'rm -rf ~/.config/brain && mkdir -p ~/.config/brain && tar -xf - -C ~/.config/brain'"
             fi
 
-            # Run deploy (deploy-remote.sh auto-detects tenant mode, no sudo)
+            # Write Cloudflare Tunnel token and restart cloudflared
+            if [ -n "$TUNNEL_TOKEN" ]; then
+              $OCI_SSH "sudo bash -c 'mkdir -p /etc/cloudflared && printf \"TUNNEL_TOKEN=%s\n\" \"$TUNNEL_TOKEN\" > /etc/cloudflared/token.env && chmod 600 /etc/cloudflared/token.env && systemctl daemon-reload && systemctl enable cloudflared && systemctl restart cloudflared'"
+            fi
+
+            # Run deploy (deploy-remote.sh auto-detects admin mode, uses sudo -u)
             cat scripts/deploy-remote.sh | $OCI_SSH "TENANT=$TENANT bash -s"
           fi
         env:
