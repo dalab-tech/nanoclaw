@@ -4,6 +4,7 @@
 #
 # Usage: sudo provision-tenant.sh <username> --port <port> [--admin]
 set -euo pipefail
+trap 'echo "Error: script failed at line $LINENO (exit code $?)" >&2' ERR
 
 usage() {
   echo "Usage: sudo $0 <username> --port <port> [--admin]"
