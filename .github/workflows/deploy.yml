@@ -81,7 +81,7 @@ jobs:
             # Run cloud-setup.sh (idempotent system-level setup)
             # SCP then execute — piping via stdin garbles heredocs through IAP tunnel
             gcloud compute scp infra/cloud-setup.sh ${VM}:/tmp/cloud-setup.sh --zone=${ZONE} --tunnel-through-iap
-            $GCP_SSH --command="sudo bash /tmp/cloud-setup.sh && rm -f /tmp/cloud-setup.sh"
+            $GCP_SSH --command="sudo bash /tmp/cloud-setup.sh"
 
             # Fix .config ownership in case cloud-init left it root-owned
             $GCP_SSH --command="sudo chown $TENANT:$TENANT /home/$TENANT/.config 2>/dev/null || true"
