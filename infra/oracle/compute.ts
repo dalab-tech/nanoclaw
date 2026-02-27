@@ -48,19 +48,26 @@ export const resolvedImageId: pulumi.Input<string> = imageId
         return imgs.images[0].id;
       });
 
-// Cloud-init script — base script + status script injected + deploy key section appended
+// Cloud-init script — assembled from cloud-init.sh (first-boot) + cloud-setup.sh (idempotent)
+// cloud-setup.sh is inlined via placeholder, then status.sh is injected into cloud-setup's placeholder
 const baseCloudInit = fs.readFileSync(
   path.join(__dirname, "..", "cloud-init.sh"),
+  "utf-8"
+);
+const cloudSetup = fs.readFileSync(
+  path.join(__dirname, "..", "cloud-setup.sh"),
   "utf-8"
 );
 const statusScript = fs.readFileSync(
   path.join(__dirname, "..", "status.sh"),
   "utf-8"
 );
-const cloudInit = baseCloudInit.replace(
-  "# __STATUS_SCRIPT_PLACEHOLDER__",
-  `cat > /usr/local/bin/status << 'STATUS'\n${statusScript}STATUS\nchmod +x /usr/local/bin/status`
-);
+const cloudInit = baseCloudInit
+  .replace("# __CLOUD_SETUP_PLACEHOLDER__", cloudSetup)
+  .replace(
+    "# __STATUS_SCRIPT_PLACEHOLDER__",
+    `cat > /usr/local/bin/status << 'STATUS'\n${statusScript}STATUS\nchmod +x /usr/local/bin/status`
+  );
 
 const userData = pulumi
   .all([privateKeyOpenssh, gitUserName, gitUserEmail, dotenvContent, cloudflareTunnelToken])

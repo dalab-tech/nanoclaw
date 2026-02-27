@@ -35,7 +35,8 @@ anton/
     gcp/              # Pulumi stack — GCP compute, network, IAM, GitHub integration
     oracle/           # Pulumi stack — OCI compute, network, GitHub integration
     cloudflare/       # Pulumi stack — DNS, email routing, redirects, tunnels
-    cloud-init.sh     # Shared cloud-init provisioning (used by GCP + OCI stacks)
+    cloud-init.sh     # First-boot provisioning (swap, users, SSH keys)
+    cloud-setup.sh    # Idempotent setup (packages, configs, services) — runnable standalone
     status.sh         # Single-source status script (deployed to instances)
   scripts/
     deploy-remote.sh  # Runs on instance during deploy (pull, build, restart)
@@ -58,10 +59,11 @@ anton/
 
 ### Cloud-Init
 
-- `infra/cloud-init.sh` is the shared base provisioning script used by both GCP and OCI stacks.
-- The status script is **not** embedded — a `# __STATUS_SCRIPT_PLACEHOLDER__` marker gets replaced by Pulumi at build time with the contents of `infra/status.sh`.
+- Provisioning is split into two scripts: `infra/cloud-init.sh` (first-boot only) and `infra/cloud-setup.sh` (idempotent, runnable standalone).
+- `cloud-init.sh` has a `# __CLOUD_SETUP_PLACEHOLDER__` marker where Pulumi inlines `cloud-setup.sh`.
+- `cloud-setup.sh` has a `# __STATUS_SCRIPT_PLACEHOLDER__` marker where Pulumi injects `infra/status.sh`.
 - The deploy key section is appended by Pulumi (not a placeholder — it's concatenated after cloud-init).
-- If you modify cloud-init, the change only takes effect on **new instances** (instance replacement or fresh provision). For running instances, use the deploy workflow or manual SSH.
+- Changes to `cloud-init.sh` only take effect on **new instances**. Changes to `cloud-setup.sh` can be applied to running instances: `scp` it over and `sudo bash` it.
 
 ### Deploy Workflow
 

@@ -9,7 +9,8 @@ infra/
   gcp/                      Pulumi stack — GCE instance, network, IAM, WIF, GitHub integration
   oracle/                   Pulumi stack — OCI instance, network, GitHub integration
   cloudflare/               Pulumi stack — DNS zones, email routing, redirects
-  cloud-init.sh             Shared cloud-init provisioning (used by GCP + OCI stacks)
+  cloud-init.sh             First-boot provisioning (swap, user creation, SSH keys)
+  cloud-setup.sh            Idempotent setup (packages, configs, services) — runnable standalone
   status.sh                 Instance health-check script (single source of truth)
   slack-app-manifest.json   Slack app config for Anton bot
 ```
@@ -28,19 +29,21 @@ See each stack's README for instance specs, quick reference, and stack-specific 
 
 ## Shared Scripts
 
-### cloud-init.sh
+### cloud-init.sh + cloud-setup.sh
 
-Base provisioning script shared by both compute stacks. Handles:
+Provisioning is split into two scripts:
 
-- OS detection (Ubuntu vs Oracle Linux) with dnf/apt branching
-- Docker CE, Node.js 22 LTS, GitHub CLI, essential tools
-- Firewall (UFW on Ubuntu, firewalld on Oracle Linux) and fail2ban
-- Swap, Ghostty terminfo, Claude Code CLI
-- User creation (admins + tenants) with SSH keys, Docker access, lingering
-- Anti-idle cron (runtime-gated, only activates on OCI instances)
-- Placeholder for status script injection and deploy key appendage
+- **`cloud-init.sh`** — first-boot only: swap, user creation (useradd, SSH keys, workspace), sudoers. Contains a `__CLOUD_SETUP_PLACEHOLDER__` marker.
+- **`cloud-setup.sh`** — idempotent setup: packages (Docker, Node.js, tools, GitHub CLI, cloudflared), firewall, fail2ban, Ghostty terminfo, Claude CLI, MC skin, user config (docker group, lingering), Cloudflare Tunnel unit, anti-idle cron, and `__STATUS_SCRIPT_PLACEHOLDER__`.
 
-Both `gcp/compute.ts` and `oracle/compute.ts` read this file, inject the status script at the `__STATUS_SCRIPT_PLACEHOLDER__` marker, and append the deploy key section.
+Both `gcp/compute.ts` and `oracle/compute.ts` assemble the final script: inline `cloud-setup.sh` at the `__CLOUD_SETUP_PLACEHOLDER__`, then inject `status.sh` at `__STATUS_SCRIPT_PLACEHOLDER__`, then append deploy key + tunnel token sections.
+
+`cloud-setup.sh` is self-contained (own shebang, variables, OS detection) so it can be run standalone on existing instances:
+
+```bash
+scp infra/cloud-setup.sh son@<instance>:/tmp/
+ssh son@<instance> sudo bash /tmp/cloud-setup.sh
+```
 
 ### status.sh
 
@@ -51,14 +54,15 @@ Instance health-check that reports on systemd services, Docker, disk, memory, an
 
 Edit `status.sh` here; it propagates automatically via both paths.
 
-## Modifying Cloud-Init
+## Modifying Provisioning
 
-Changes to `cloud-init.sh` only take effect on **new instances** (instance replacement or fresh provision). For running instances, use the deploy workflow (`.github/workflows/deploy.yml`) or SSH.
+Changes to `cloud-init.sh` only take effect on **new instances** (instance replacement or fresh provision). Changes to `cloud-setup.sh` can be applied to running instances by copying and running it directly (see above).
 
 Always validate after editing:
 
 ```bash
 bash -n infra/cloud-init.sh          # syntax check
+bash -n infra/cloud-setup.sh         # syntax check
 cd infra/gcp && pulumi preview       # confirm GCP diff
 cd infra/oracle && pulumi preview    # confirm OCI diff
 ```
