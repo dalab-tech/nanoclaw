@@ -51,6 +51,7 @@ jobs:
         with:
           sparse-checkout: |
             scripts/deploy-remote.sh
+            scripts/provision-tenant.sh
             infra/status.sh
             brain/
             config/
@@ -101,6 +102,11 @@ jobs:
                 --command="sudo -u $TENANT bash -c 'rm -rf ~/.config/brain && mkdir -p ~/.config/brain && tar -xf - -C ~/.config/brain'"
             fi
 
+            # Deploy provision-tenant.sh to /usr/local/bin (admin tool)
+            $GCP_SSH \
+              --command="sudo bash -c 'cat > /usr/local/bin/provision-tenant.sh && chmod +x /usr/local/bin/provision-tenant.sh'" \
+              < scripts/provision-tenant.sh
+
             # Write Cloudflare Tunnel token and restart cloudflared
             if [ -n "$TUNNEL_TOKEN" ]; then
               $GCP_SSH --command="sudo bash -c 'mkdir -p /etc/cloudflared && printf \"TUNNEL_TOKEN=%s\n\" \"$TUNNEL_TOKEN\" > /etc/cloudflared/token.env && chmod 600 /etc/cloudflared/token.env && systemctl daemon-reload && systemctl enable cloudflared && systemctl restart cloudflared'"
@@ -130,6 +136,9 @@ jobs:
             if [ "$TENANT" = "anton" ]; then
               tar -cf - -C brain . | $OCI_SSH "sudo -u $TENANT bash -c 'rm -rf ~/.config/brain && mkdir -p ~/.config/brain && tar -xf - -C ~/.config/brain'"
             fi
+
+            # Deploy provision-tenant.sh to /usr/local/bin (admin tool)
+            cat scripts/provision-tenant.sh | $OCI_SSH "sudo bash -c 'cat > /usr/local/bin/provision-tenant.sh && chmod +x /usr/local/bin/provision-tenant.sh'"
 
             # Write Cloudflare Tunnel token and restart cloudflared
             if [ -n "$TUNNEL_TOKEN" ]; then
