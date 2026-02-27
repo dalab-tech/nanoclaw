@@ -123,8 +123,8 @@ jobs:
             chmod 600 /tmp/deploy_key
             OCI_SSH="ssh -o StrictHostKeyChecking=no -i /tmp/deploy_key ${TENANT}@${{ vars.OCI_DEPLOY_HOST }}"
 
-            # Note: cloud-setup.sh skipped on OCI — tenant user has no sudo.
-            # OCI gets cloud-setup on first boot only; apply manually via SSH as admin.
+            # Deploy cloud-setup.sh to /tmp (tenant has no sudo to run it, but admin can)
+            cat infra/cloud-setup.sh | $OCI_SSH "cat > /tmp/cloud-setup.sh && chmod +x /tmp/cloud-setup.sh"
 
             # Write .env to ~/.config/nanoclaw/ (outside repo dir, avoids git clone conflict)
             echo "$NANOCLAW_DOTENV" | $OCI_SSH "mkdir -p ~/.config/nanoclaw && cat > ~/.config/nanoclaw/.env && chmod 600 ~/.config/nanoclaw/.env"
