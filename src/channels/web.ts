@@ -9,7 +9,7 @@ import { serve } from '@hono/node-server';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 
-import { ASSISTANT_NAME, MAIN_GROUP_FOLDER, WEB_API_PORT } from '../config.js';
+import { ASSISTANT_NAME, MAIN_GROUP_FOLDER, WEB_CHANNEL_PORT } from '../config.js';
 import {
   getDatabase,
   getAllWebSessions,
@@ -79,7 +79,7 @@ export class WebChannel implements Channel {
   }
 
   async connect(): Promise<void> {
-    const port = this.opts.port ?? WEB_API_PORT;
+    const port = this.opts.port ?? WEB_CHANNEL_PORT;
     const app = new Hono();
 
     // Health endpoint (no auth)

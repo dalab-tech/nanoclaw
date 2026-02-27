@@ -756,7 +756,7 @@ async function main(): Promise<void> {
     'GITHUB_TOKEN',
     'GITHUB_USERNAME',
     'WEB_AUTH_TOKEN',
-    'WEB_API_PORT',
+    'WEB_CHANNEL_PORT',
   ]);
 
   // WhatsApp: conditional on auth creds existing
@@ -801,8 +801,8 @@ async function main(): Promise<void> {
     const web = new WebChannel({
       ...channelOpts,
       authToken: envTokens.WEB_AUTH_TOKEN,
-      port: envTokens.WEB_API_PORT
-        ? parseInt(envTokens.WEB_API_PORT, 10)
+      port: envTokens.WEB_CHANNEL_PORT
+        ? parseInt(envTokens.WEB_CHANNEL_PORT, 10)
         : undefined,
       registerGroup,
       onDirectEnqueue: (jid) => queue.enqueueMessageCheck(jid),

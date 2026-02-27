@@ -113,7 +113,7 @@ export const TRIGGER_PATTERN = new RegExp(
 );
 
 // Web channel API port
-export const WEB_API_PORT = parseInt(process.env.WEB_API_PORT || '3100', 10);
+export const WEB_CHANNEL_PORT = parseInt(process.env.WEB_CHANNEL_PORT || '3100', 10);
 
 // Timezone for scheduled tasks (cron expressions, etc.)
 // Uses system timezone by default
