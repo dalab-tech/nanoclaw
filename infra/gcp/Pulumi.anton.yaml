@@ -24,3 +24,4 @@ config:
   nanoclaw:stixMcpUrl: https://stix.dalab.lol/mcp
   nanoclaw:stixApiKey:
     secure: v1:Xhi24gru6FJS2xlJ:CsJpp1hXrEZcjWpUB8juj9rBfWetU/vCJFKZpNOTU6yZgm4am7K/4APYGVVWkxlirQ==
+  nanoclaw:assistantName: stix
