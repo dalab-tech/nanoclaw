@@ -79,7 +79,9 @@ jobs:
             GCP_SSH="gcloud compute ssh ${VM} --zone=${ZONE} --tunnel-through-iap"
 
             # Run cloud-setup.sh (idempotent system-level setup)
-            $GCP_SSH --command="sudo bash -s" < infra/cloud-setup.sh
+            # SCP then execute — piping via stdin garbles heredocs through IAP tunnel
+            gcloud compute scp infra/cloud-setup.sh ${VM}:/tmp/cloud-setup.sh --zone=${ZONE} --tunnel-through-iap
+            $GCP_SSH --command="sudo bash /tmp/cloud-setup.sh && rm -f /tmp/cloud-setup.sh"
 
             # Fix .config ownership in case cloud-init left it root-owned
             $GCP_SSH --command="sudo chown $TENANT:$TENANT /home/$TENANT/.config 2>/dev/null || true"
@@ -121,9 +123,8 @@ jobs:
             chmod 600 /tmp/deploy_key
             OCI_SSH="ssh -o StrictHostKeyChecking=no -i /tmp/deploy_key ${TENANT}@${{ vars.OCI_DEPLOY_HOST }}"
 
-            # Run cloud-setup.sh (needs sudo — SSH as default OS user who always has sudo)
-            OCI_SSH_ADMIN="ssh -o StrictHostKeyChecking=no -i /tmp/deploy_key ubuntu@${{ vars.OCI_DEPLOY_HOST }}"
-            cat infra/cloud-setup.sh | $OCI_SSH_ADMIN "sudo bash -s"
+            # Note: cloud-setup.sh skipped on OCI — tenant user has no sudo.
+            # OCI gets cloud-setup on first boot only; apply manually via SSH as admin.
 
             # Write .env to ~/.config/nanoclaw/ (outside repo dir, avoids git clone conflict)
             echo "$NANOCLAW_DOTENV" | $OCI_SSH "mkdir -p ~/.config/nanoclaw && cat > ~/.config/nanoclaw/.env && chmod 600 ~/.config/nanoclaw/.env"
