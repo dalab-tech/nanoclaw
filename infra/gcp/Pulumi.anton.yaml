@@ -17,3 +17,5 @@ config:
     secure: v1:WBcQU1azuRppfcUG:kyoqZAfjpbndDC3hCn01N8Ve00sBW2NoHRFfq9LoZneupkEH59DkbzsDD7LfTr9eX3iz/mUV3FkqjBFE/Ir1vPWrdot+AXuKy0o=
   nanoclaw:slackAppToken:
     secure: v1:lJbcxGXtv9iWMBpa:fcbaQsJZ7UoOD1p00PxVfKslwGbwAj0lTFZa0ouWTz+xT0n+10a2nM2zO3y4vGZifl/yjz/en1wsgw1i8xwck//Rc+wdldswAWnn+5XNO+c2hQPf+HemxWHVOCeOMsPHcH8nih1ohhw31ZhsD3yPXG2G
+  nanoclaw:cloudflareTunnelToken:
+    secure: v1:l/06ADLSr2tLL9a9:W37KtdtEBXv2oJvwl9LFQHi/M9aPpqBO9MDRDRWsuN9hW0aM978U7P9gujC2roNbbrSNd7sL1gOI/OrtQMd0wPLgtlPaHuLZZaD5+Jkxjd8RPoR5H+39ti6KR8Zejr6n5qqnzZ5g0pmJn+rEhh5bIQg3LO/qtAPMF3JpOo+IknBr5L7D2n7ivos7+u/5OlkP+eUzg80ZZ9P5xjBlQzsdkG2s54dwzqfgNcF1OuHamdzaHu/IbtcwQ7mM0T/orYO2w8JAvQ==

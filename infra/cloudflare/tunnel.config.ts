@@ -25,7 +25,7 @@ export const providers = {
  *  stack: Pulumi stack name within that project
  *  Tunnel secrets in Pulumi config: tunnel:{name}Secret */
 export const instances = {
-  "nanoclaw-gcp": { provider: "gcp" as const, stack: "dalab-anton" },
+  "nanoclaw-gcp": { provider: "gcp" as const, stack: "anton" },
   "nanoclaw-oci": { provider: "oci" as const, stack: "anton" },
 };
 
@@ -34,7 +34,7 @@ export const instances = {
  *  Port: localhost port the tenant's nanoclaw listens on
  *  Instance: key from `instances` above */
 export const routes = [
-  { service: "stix-api", tenant: "anton", port: 3001, instance: "nanoclaw-gcp" },
-  // { service: "stix-api", tenant: "bob",   port: 3002, instance: "nanoclaw-gcp" },
+  { service: "stix-api", tenant: "anton-gcp", port: 3001, instance: "nanoclaw-gcp" },
+  { service: "stix-api", tenant: "anton", port: 3001, instance: "nanoclaw-oci" },
   // { service: "other",    tenant: "anton", port: 4001, instance: "nanoclaw-oci" },
 ] as const;

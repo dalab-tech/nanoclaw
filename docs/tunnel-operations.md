@@ -20,7 +20,7 @@ Edit `infra/cloudflare/tunnel.config.ts`:
 
 ```typescript
 export const instances = {
-  "nanoclaw-gcp": { provider: "gcp", stack: "dalab-anton" },
+  "nanoclaw-gcp": { provider: "gcp", stack: "anton" },
   "nanoclaw-oci": { provider: "oci", stack: "anton" },
   "nanoclaw-gcp-staging": { provider: "gcp", stack: "dalab-staging" },  // ← new
 };
