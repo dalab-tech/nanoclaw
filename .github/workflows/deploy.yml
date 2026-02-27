@@ -52,6 +52,7 @@ jobs:
           sparse-checkout: |
             scripts/deploy-remote.sh
             infra/status.sh
+            infra/cloud-setup.sh
             brain/
             config/
           sparse-checkout-cone-mode: false
@@ -76,6 +77,9 @@ jobs:
             VM="${{ vars.GCP_VM_INSTANCE_NAME }}"
             ZONE="${{ vars.GCP_ZONE }}"
             GCP_SSH="gcloud compute ssh ${VM} --zone=${ZONE} --tunnel-through-iap"
+
+            # Run cloud-setup.sh (idempotent system-level setup)
+            $GCP_SSH --command="sudo bash -s" < infra/cloud-setup.sh
 
             # Fix .config ownership in case cloud-init left it root-owned
             $GCP_SSH --command="sudo chown $TENANT:$TENANT /home/$TENANT/.config 2>/dev/null || true"
@@ -116,6 +120,10 @@ jobs:
             echo "${{ secrets.OCI_DEPLOY_SSH_KEY }}" > /tmp/deploy_key
             chmod 600 /tmp/deploy_key
             OCI_SSH="ssh -o StrictHostKeyChecking=no -i /tmp/deploy_key ${TENANT}@${{ vars.OCI_DEPLOY_HOST }}"
+
+            # Run cloud-setup.sh (needs sudo — SSH as admin)
+            OCI_SSH_ADMIN="ssh -o StrictHostKeyChecking=no -i /tmp/deploy_key son@${{ vars.OCI_DEPLOY_HOST }}"
+            cat infra/cloud-setup.sh | $OCI_SSH_ADMIN "sudo bash -s"
 
             # Write .env to ~/.config/nanoclaw/ (outside repo dir, avoids git clone conflict)
             echo "$NANOCLAW_DOTENV" | $OCI_SSH "mkdir -p ~/.config/nanoclaw && cat > ~/.config/nanoclaw/.env && chmod 600 ~/.config/nanoclaw/.env"

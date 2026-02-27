@@ -72,6 +72,7 @@ anton/
 - **Structure**: a `setup` job builds a matrix from `inputs.target`, then a single `deploy` job runs per instance. Each instance has a GitHub environment (`nanoclaw-gcp`, `nanoclaw-oci`) with a `DEPLOY_PROVIDER` variable that controls provider-specific steps.
 - Targets use instance names from `tunnel.config.ts`: `nanoclaw-gcp`, `nanoclaw-oci`, or `all`.
 - GCP connects via IAP tunnel (`gcloud compute ssh`). OCI connects via direct SSH with a deploy key.
+- The deploy workflow runs `cloud-setup.sh` (with sudo) on each deploy before tenant-specific steps — keeping running instances up to date with system-level config changes without requiring a new instance.
 
 ### Shared Scripts
 

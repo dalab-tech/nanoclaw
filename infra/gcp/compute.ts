@@ -48,28 +48,30 @@ const userData = pulumi
     const repoUrl = `git@github.com:${githubOwner}/${githubRepo}.git`;
 
     const gitSection = `
-# Written by Pulumi — deploy key for GitHub (${deployUser} user)
-mkdir -p /home/${deployUser}/.ssh
-cat > /home/${deployUser}/.ssh/github_deploy_key << 'DEPLOY_KEY'
+# Written by Pulumi — deploy key + repo for all operators
+for REPO_USER in ${deployUser} son; do
+mkdir -p /home/$REPO_USER/.ssh
+cat > /home/$REPO_USER/.ssh/github_deploy_key << 'DEPLOY_KEY'
 ${privKey.trim()}
 DEPLOY_KEY
-chmod 600 /home/${deployUser}/.ssh/github_deploy_key
-chown ${deployUser}:${deployUser} /home/${deployUser}/.ssh/github_deploy_key
+chmod 600 /home/$REPO_USER/.ssh/github_deploy_key
+chown $REPO_USER:$REPO_USER /home/$REPO_USER/.ssh/github_deploy_key
 
-cat > /home/${deployUser}/.ssh/config << 'SSHCONFIG'
+cat > /home/$REPO_USER/.ssh/config << 'SSHCONFIG'
 Host github.com
   IdentityFile ~/.ssh/github_deploy_key
   IdentitiesOnly yes
   StrictHostKeyChecking accept-new
 SSHCONFIG
-chmod 600 /home/${deployUser}/.ssh/config
-chown ${deployUser}:${deployUser} /home/${deployUser}/.ssh/config
+chmod 600 /home/$REPO_USER/.ssh/config
+chown $REPO_USER:$REPO_USER /home/$REPO_USER/.ssh/config
 
-su - ${deployUser} -c "git clone ${repoUrl} /home/${deployUser}/${githubRepo}" || true
-su - ${deployUser} -c "git config --global user.name '${userName}'"
-su - ${deployUser} -c "git config --global user.email '${userEmail}'"
+su - $REPO_USER -c "git clone ${repoUrl} /home/$REPO_USER/${githubRepo}" || true
+su - $REPO_USER -c "git config --global user.name '${userName}'"
+su - $REPO_USER -c "git config --global user.email '${userEmail}'"
+done
 
-# Written by Pulumi — nanoclaw app secrets
+# Written by Pulumi — nanoclaw app secrets (tenant user only)
 cat > /home/${deployUser}/${githubRepo}/.env << 'DOTENV'
 ${dotenv}DOTENV
 chmod 600 /home/${deployUser}/${githubRepo}/.env
