@@ -10,8 +10,9 @@ export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNT
 
 PERSONA=$(whoami)
 NCLAW_DIR="$HOME/nanoclaw"
+ASSISTANT=$(grep -m1 '^ASSISTANT_NAME=' "$NCLAW_DIR/.env" 2>/dev/null | cut -d= -f2-)
 
-echo -e "${C}nanoclaw status${N} ($PERSONA)"
+echo -e "${C}nanoclaw status${N} ($PERSONA) ${ASSISTANT:+— assistant: ${C}${ASSISTANT}${N}}"
 
 # ── Illegal state checks ───────────────────────────────────────
 
