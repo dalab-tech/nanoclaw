@@ -6,7 +6,7 @@ import { workloadIdentityProvider } from "./workload-identity";
 import { instance } from "./compute";
 import { githubProvider } from "./github";
 import { dotenvContent } from "./dotenv";
-import { tunnelToken } from "./config";
+import { cloudflareTunnelToken } from "./config";
 
 // =============================================================================
 // GitHub Environment & Variables for GCP deploy
@@ -53,4 +53,4 @@ const envSecret = (slug: string, secretName: string, plaintextValue: pulumi.Outp
   );
 
 envSecret("dotenv", "NANOCLAW_DOTENV", dotenvContent);
-envSecret("tunnel-token", "TUNNEL_TOKEN", tunnelToken);
+envSecret("tunnel-token", "TUNNEL_TOKEN", cloudflareTunnelToken);

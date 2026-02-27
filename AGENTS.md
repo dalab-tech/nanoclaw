@@ -89,7 +89,7 @@ Nanoclaw's web channel uses Cloudflare Tunnel for inbound HTTP — outbound-only
 - `routes`: each creates an ingress rule + CNAME. Fields: `service`, `tenant`, `port`, `instance`
 - **Subdomain convention**: `{service}-nanoclaw-{tenant}.dalab.lol` (e.g. `stix-api-nanoclaw-anton.dalab.lol`)
 
-**Token flow**: Cloudflare stack creates tunnel → exports token → operator copies token to compute stack (`pulumi config set --secret nanoclaw:tunnelToken`) → cloud-init/deploy writes token to instance → cloudflared starts.
+**Token flow**: Cloudflare stack auto-generates tunnel secret and exports token → operator copies token to compute stack (`pulumi config set --secret nanoclaw:cloudflareTunnelToken`) → cloud-init/deploy writes token to instance → cloudflared starts.
 
 **Port conventions**: 3001+ for stix-api. Each tenant gets a unique port assigned by `provision-tenant.sh` and stored in `~/.config/nanoclaw/port.env`.
 
@@ -100,10 +100,9 @@ Nanoclaw's web channel uses Cloudflare Tunnel for inbound HTTP — outbound-only
 
 **Adding a new instance**:
 1. Add to `instances` in `tunnel.config.ts`, add routes
-2. Generate tunnel secret: `pulumi config set --secret tunnel:<name>Secret $(openssl rand -base64 32)`
-3. `pulumi up` on cloudflare stack → creates tunnel
-4. Copy token to compute stack: `pulumi config set --secret nanoclaw:tunnelToken "$(pulumi stack output tunnel_<name>_token --show-secrets)"`
-5. `pulumi up` on compute stack → instance gets cloudflared + token
+2. `pulumi up` on cloudflare stack → creates tunnel (secret auto-generated)
+3. Copy token to compute stack: `pulumi config set --secret nanoclaw:cloudflareTunnelToken "$(pulumi stack output tunnel_<name>_token --show-secrets)"`
+4. `pulumi up` on compute stack → instance gets cloudflared + token
 
 ## Operational Rules
 

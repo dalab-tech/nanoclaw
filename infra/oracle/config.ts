@@ -38,7 +38,7 @@ export const slackAppToken = nanoclawConfig.getSecret("slackAppToken") ?? pulumi
 export const assistantName = nanoclawConfig.get("assistantName") || "Anton";
 
 // Cloudflare Tunnel token (copied from cloudflare stack output after tunnel creation)
-export const tunnelToken = nanoclawConfig.getSecret("tunnelToken") ?? pulumi.output("");
+export const cloudflareTunnelToken = nanoclawConfig.getSecret("cloudflareTunnelToken") ?? pulumi.output("");
 
 // Auto-discover first availability domain via API
 export const availabilityDomain = oci.identity

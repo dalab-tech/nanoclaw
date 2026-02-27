@@ -7,10 +7,9 @@
 
 import * as pulumi from "@pulumi/pulumi";
 import * as cloudflare from "@pulumi/cloudflare";
+import * as random from "@pulumi/random";
 import { domain, instances, routes } from "./tunnel.config";
 import { accountId, zones } from "./zones";
-
-const config = new pulumi.Config("tunnel");
 
 // ── Validation ───────────────────────────────────────────────────────────────
 
@@ -47,7 +46,11 @@ export const tunnelOutputs: Record<string, {
 }> = {};
 
 for (const [name, _instance] of Object.entries(instances)) {
-  const tunnelSecret = config.requireSecret(`${name}Secret`);
+  // Auto-generate tunnel secret — lives in Pulumi state, no manual config needed
+  const secretBytes = new random.RandomBytes(`tunnel-secret-${name}`, {
+    length: 32,
+  });
+  const tunnelSecret = secretBytes.base64;
   const zoneId = zones.dalabLol;
 
   if (!zoneId) {

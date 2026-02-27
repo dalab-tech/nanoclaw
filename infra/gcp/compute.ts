@@ -13,7 +13,7 @@ import {
   githubRepo,
   gitUserName,
   gitUserEmail,
-  tunnelToken,
+  cloudflareTunnelToken,
 } from "./config";
 import { subnet } from "./network";
 import { vmSa, cicdSa } from "./service-accounts";
@@ -36,7 +36,7 @@ const cloudInit = baseCloudInit.replace(
 );
 
 const userData = pulumi
-  .all([privateKeyOpenssh, gitUserName, gitUserEmail, dotenvContent, tunnelToken])
+  .all([privateKeyOpenssh, gitUserName, gitUserEmail, dotenvContent, cloudflareTunnelToken])
   .apply(([privKey, userName, userEmail, dotenv, cfToken]) => {
     const repoUrl = `git@github.com:${githubOwner}/${githubRepo}.git`;
 
