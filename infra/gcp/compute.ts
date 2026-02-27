@@ -13,6 +13,7 @@ import {
   githubRepo,
   gitUserName,
   gitUserEmail,
+  tunnelToken,
 } from "./config";
 import { subnet } from "./network";
 import { vmSa, cicdSa } from "./service-accounts";
@@ -35,8 +36,8 @@ const cloudInit = baseCloudInit.replace(
 );
 
 const userData = pulumi
-  .all([privateKeyOpenssh, gitUserName, gitUserEmail, dotenvContent])
-  .apply(([privKey, userName, userEmail, dotenv]) => {
+  .all([privateKeyOpenssh, gitUserName, gitUserEmail, dotenvContent, tunnelToken])
+  .apply(([privKey, userName, userEmail, dotenv, cfToken]) => {
     const repoUrl = `git@github.com:${githubOwner}/${githubRepo}.git`;
 
     const gitSection = `
@@ -68,7 +69,18 @@ chmod 600 /home/${deployUser}/${githubRepo}/.env
 chown ${deployUser}:${deployUser} /home/${deployUser}/${githubRepo}/.env
 `;
 
-    return cloudInit + gitSection;
+    const cfSection = cfToken ? `
+# Written by Pulumi — Cloudflare Tunnel token
+mkdir -p /etc/cloudflared
+cat > /etc/cloudflared/token.env << 'CFTOKEN'
+TUNNEL_TOKEN=${cfToken}
+CFTOKEN
+chmod 600 /etc/cloudflared/token.env
+systemctl enable cloudflared
+systemctl start cloudflared
+` : "";
+
+    return cloudInit + gitSection + cfSection;
   });
 
 export const instance = new gcp.compute.Instance("nanoclaw-vm", {

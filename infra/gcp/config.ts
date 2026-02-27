@@ -31,3 +31,6 @@ export const claudeCodeOauthToken = nanoclawConfig.getSecret("claudeCodeOauthTok
 export const slackBotToken = nanoclawConfig.getSecret("slackBotToken") ?? pulumi.output("");
 export const slackAppToken = nanoclawConfig.getSecret("slackAppToken") ?? pulumi.output("");
 export const assistantName = nanoclawConfig.get("assistantName") || "Anton";
+
+// Cloudflare Tunnel token (copied from cloudflare stack output after tunnel creation)
+export const tunnelToken = nanoclawConfig.getSecret("tunnelToken") ?? pulumi.output("");

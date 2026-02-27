@@ -1,0 +1,255 @@
+# Tunnel Operations
+
+Step-by-step runbooks for provisioning instances and tenants with Cloudflare Tunnel.
+
+## Prerequisites
+
+- Pulumi CLI installed, `PULUMI_CONFIG_PASSPHRASE` set
+- SSH access to target instance (admin user with sudo)
+- GitHub CLI (`gh`) authenticated
+
+---
+
+## Provision a new instance
+
+When you're adding a brand new compute instance (e.g. a second GCP stack).
+
+### 1. Register the instance in tunnel config
+
+Edit `infra/cloudflare/tunnel.config.ts`:
+
+```typescript
+export const instances = {
+  "nanoclaw-gcp": { provider: "gcp", stack: "dalab-anton" },
+  "nanoclaw-oci": { provider: "oci", stack: "anton" },
+  "nanoclaw-gcp-staging": { provider: "gcp", stack: "dalab-staging" },  // ← new
+};
+```
+
+Add routes for tenants on this instance:
+
+```typescript
+export const routes = [
+  // ...existing routes...
+  { service: "stix-api", tenant: "anton", port: 3001, instance: "nanoclaw-gcp-staging" },
+];
+```
+
+### 2. Generate tunnel secret and apply
+
+```bash
+cd infra/cloudflare
+pulumi config set --secret tunnel:nanoclaw-gcp-stagingSecret "$(openssl rand -base64 32)"
+pulumi up
+```
+
+This creates the Cloudflare Tunnel, DNS CNAMEs, and ingress rules.
+
+### 3. Create the compute stack
+
+```bash
+cd infra/gcp
+pulumi stack init dalab-staging
+# Set required config (project, zone, machine type, GitHub PAT, etc.)
+```
+
+### 4. Copy tunnel token to compute stack
+
+```bash
+TOKEN=$(cd ../cloudflare && pulumi stack output tunnel_nanoclaw_gcp_staging_token --show-secrets)
+cd infra/gcp
+pulumi config set --secret nanoclaw:tunnelToken "$TOKEN"
+```
+
+### 5. Deploy the instance
+
+```bash
+pulumi up
+```
+
+The instance boots with cloud-init, which installs cloudflared and creates the systemd unit. The Pulumi-appended section writes the tunnel token and starts cloudflared.
+
+### 6. Verify
+
+SSH to the instance and check:
+
+```bash
+sudo systemctl status cloudflared
+curl -s http://localhost:3001  # should get nanoclaw response (once deployed)
+```
+
+---
+
+## Provision a new tenant
+
+When you're adding a new user to an existing instance.
+
+### 1. Choose a port
+
+Ports are per-tenant, per-instance. Convention: 3001+ for stix-api.
+
+Check existing assignments:
+
+```bash
+# On the instance:
+grep -r PORT /home/*/.config/nanoclaw/port.env 2>/dev/null
+```
+
+### 2. Add route to tunnel config
+
+Edit `infra/cloudflare/tunnel.config.ts`:
+
+```typescript
+export const routes = [
+  { service: "stix-api", tenant: "anton", port: 3001, instance: "nanoclaw-gcp" },
+  { service: "stix-api", tenant: "bob",   port: 3002, instance: "nanoclaw-gcp" },  // ← new
+];
+```
+
+### 3. Apply DNS + ingress
+
+```bash
+cd infra/cloudflare
+pulumi up
+```
+
+This creates the CNAME (`stix-api-nanoclaw-bob.dalab.lol`) and adds the ingress rule to the tunnel. The running cloudflared picks up new ingress rules automatically.
+
+### 4. Provision user on instance
+
+Copy the script to the instance and run it:
+
+```bash
+scp scripts/provision-tenant.sh son@<instance>:/tmp/
+ssh son@<instance>
+sudo /tmp/provision-tenant.sh bob --port 3002
+```
+
+The script creates the OS user, sets the port, generates SSH keys, and prints next steps.
+
+### 5. Add GitHub deploy key
+
+```bash
+# On the instance:
+cat /home/bob/.ssh/id_ed25519.pub
+```
+
+Add this as a deploy key to the nanoclaw repo on GitHub (read-only).
+
+### 6. Deploy nanoclaw
+
+```bash
+gh workflow run deploy.yml -f tenant=bob -f target=gcp
+```
+
+### 7. Verify
+
+```bash
+curl https://stix-api-nanoclaw-bob.dalab.lol
+# On the instance:
+sudo -u bob status
+```
+
+---
+
+## Existing instance — first-time tunnel setup
+
+For instances that already exist but don't have a tunnel yet (the current GCP/OCI instances).
+
+### 1. Generate tunnel secret
+
+```bash
+cd infra/cloudflare
+pulumi config set --secret tunnel:nanoclaw-gcpSecret "$(openssl rand -base64 32)"
+pulumi config set --secret tunnel:nanoclaw-ociSecret "$(openssl rand -base64 32)"
+pulumi up
+```
+
+### 2. Copy tokens to compute stacks
+
+```bash
+# GCP
+TOKEN=$(cd infra/cloudflare && pulumi stack output tunnel_nanoclaw_gcp_token --show-secrets)
+cd infra/gcp && pulumi config set --secret nanoclaw:tunnelToken "$TOKEN"
+pulumi up  # updates instance metadata — will NOT replace the instance (GCP)
+
+# OCI
+TOKEN=$(cd infra/cloudflare && pulumi stack output tunnel_nanoclaw_oci_token --show-secrets)
+cd infra/oracle && pulumi config set --secret nanoclaw:tunnelToken "$TOKEN"
+# OCI metadata has ignoreChanges — token only takes effect on new instances.
+# For the running instance, deploy will write it:
+```
+
+### 3. Install cloudflared on running instances
+
+Since cloud-init only runs on new instances, install manually:
+
+```bash
+# GCP (Ubuntu):
+ssh son@<gcp-instance>
+curl -fsSL "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb" -o /tmp/cloudflared.deb
+sudo dpkg -i /tmp/cloudflared.deb
+
+# Create systemd unit (same as cloud-init):
+sudo mkdir -p /etc/cloudflared
+sudo tee /etc/systemd/system/cloudflared.service << 'EOF'
+[Unit]
+Description=Cloudflare Tunnel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/cloudflared/token.env
+ExecStart=/usr/bin/cloudflared tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo systemctl daemon-reload
+```
+
+### 4. Deploy to write token and start cloudflared
+
+```bash
+gh workflow run deploy.yml -f target=gcp
+```
+
+The deploy workflow writes the tunnel token to `/etc/cloudflared/token.env` and restarts cloudflared.
+
+### 5. Set port for existing tenant
+
+```bash
+ssh son@<instance>
+sudo mkdir -p /home/anton/.config/nanoclaw
+echo "PORT=3001" | sudo tee /home/anton/.config/nanoclaw/port.env
+sudo chown anton:anton /home/anton/.config/nanoclaw/port.env
+```
+
+Then redeploy to pick up the new EnvironmentFile:
+
+```bash
+gh workflow run deploy.yml -f target=gcp
+```
+
+---
+
+## Troubleshooting
+
+**cloudflared not running**: Check token is written and valid:
+```bash
+sudo cat /etc/cloudflared/token.env
+sudo systemctl status cloudflared
+sudo journalctl -u cloudflared --no-pager -n 50
+```
+
+**DNS not resolving**: Verify CNAME exists in Cloudflare dashboard, and that the tunnel is healthy. Check `pulumi stack output` for tunnel ID.
+
+**Port conflict**: `provision-tenant.sh` checks for collisions. To audit manually:
+```bash
+grep -r PORT /home/*/.config/nanoclaw/port.env
+```
+
+**Tunnel picks up new routes automatically**: After `pulumi up` on the cloudflare stack, the managed config updates immediately — no need to restart cloudflared.

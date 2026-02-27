@@ -43,6 +43,7 @@ WorkingDirectory=$NCLAW_DIR
 Restart=always
 RestartSec=30
 EnvironmentFile=-$ENV_SOURCE
+EnvironmentFile=-$NCLAW_CONFIG/port.env
 Environment=HOME=$TENANT_HOME
 Environment=PATH=/usr/local/bin:/usr/bin:/bin:$TENANT_HOME/.local/bin
 

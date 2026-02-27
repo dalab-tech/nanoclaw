@@ -124,6 +124,17 @@ if [ -n "$FOREIGN" ]; then
   echo "$FOREIGN" | while read -r c; do fail "  $c"; done
 fi
 
+# ── Cloudflare Tunnel ──────────────────────────────────────────
+if command -v cloudflared >/dev/null 2>&1; then
+  if systemctl is-active --quiet cloudflared 2>/dev/null; then
+    ok "cloudflared tunnel active"
+  elif systemctl is-enabled --quiet cloudflared 2>/dev/null; then
+    fail "cloudflared enabled but not running"
+  else
+    warn "cloudflared installed but not configured"
+  fi
+fi
+
 # ── Dependencies ───────────────────────────────────────────────
 echo -e "\n${C}dependencies${N}"
 for cmd in node npm git jq curl; do

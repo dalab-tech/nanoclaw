@@ -80,12 +80,18 @@ jobs:
               --command="sudo -u $TENANT bash -c 'rm -rf ~/.config/brain && mkdir -p ~/.config/brain && tar -xf - -C ~/.config/brain'"
           fi
 
+          # Write Cloudflare Tunnel token and restart cloudflared
+          if [ -n "$TUNNEL_TOKEN" ]; then
+            $GCP_SSH --command="sudo bash -c 'mkdir -p /etc/cloudflared && printf \"TUNNEL_TOKEN=%s\n\" \"$TUNNEL_TOKEN\" > /etc/cloudflared/token.env && chmod 600 /etc/cloudflared/token.env && systemctl daemon-reload && systemctl enable cloudflared && systemctl restart cloudflared'"
+          fi
+
           # Run deploy (deploy-remote.sh auto-detects admin mode, uses sudo -u)
           $GCP_SSH \
             --command="TENANT=$TENANT bash -s" \
             < scripts/deploy-remote.sh
         env:
           NANOCLAW_DOTENV: ${{ secrets.NANOCLAW_DOTENV }}
+          TUNNEL_TOKEN: ${{ secrets.TUNNEL_TOKEN }}
 
   deploy-oci:
     # OCI: SSH as tenant directly (no sudo needed)

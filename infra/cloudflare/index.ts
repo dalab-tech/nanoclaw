@@ -1,7 +1,7 @@
 /**
  * Cloudflare Infrastructure — Pulumi
  *
- * Manages DNS records, domain redirects, and email routing for all domains
+ * Manages DNS records, domain redirects, email routing, and Cloudflare Tunnels for all domains
  * in the lamson-dev Cloudflare account. Single stack manages all zones.
  *
  * Fully isolated from the GCP infrastructure in infra/.
@@ -18,6 +18,7 @@ import * as dns from './dns';
 import * as stixDns from './stix-dns';
 import * as redirects from './redirects';
 import * as email from './email';
+import * as tunnel from './tunnel';
 import { zones } from './zones';
 
 const outputs: Record<string, unknown> = {};
@@ -64,6 +65,13 @@ for (const [zoneKey, records] of Object.entries(stixDns.stixRecordsByZone)) {
   for (const [key, record] of Object.entries(records)) {
     outputs[`stix_${zoneKey}_${key}`] = record.id;
   }
+}
+
+// ─── Tunnel outputs ─────────────────────────────────────────────────
+for (const [name, out] of Object.entries(tunnel.tunnelOutputs)) {
+  const key = name.replace(/-/g, '_');
+  outputs[`tunnel_${key}_id`] = out.tunnelId;
+  outputs[`tunnel_${key}_token`] = out.tunnelToken;
 }
 
 module.exports = outputs;

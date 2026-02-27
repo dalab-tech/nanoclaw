@@ -34,11 +34,12 @@ anton/
   infra/
     gcp/              # Pulumi stack — GCP compute, network, IAM, GitHub integration
     oracle/           # Pulumi stack — OCI compute, network, GitHub integration
-    cloudflare/       # Pulumi stack — DNS, email routing, redirects
+    cloudflare/       # Pulumi stack — DNS, email routing, redirects, tunnels
     cloud-init.sh     # Shared cloud-init provisioning (used by GCP + OCI stacks)
     status.sh         # Single-source status script (deployed to instances)
   scripts/
     deploy-remote.sh  # Runs on instance during deploy (pull, build, restart)
+    provision-tenant.sh  # Onboard a new tenant on an instance
   .github/workflows/
     deploy.yml        # Deploys nanoclaw + status script to instances
   connect.sh          # SSH to instances: ./connect.sh <user> [--gcp|--oci]
@@ -74,6 +75,35 @@ anton/
 - `infra/status.sh` is the **single source of truth** for the instance health check. Edit it here; it propagates to cloud-init (via Pulumi) and running instances (via deploy workflow).
 - `scripts/deploy-remote.sh` runs on the instance — pulls nanoclaw, builds, restarts the service.
 - `connect.sh` and `sup` are local convenience scripts, not deployed.
+
+### Cloudflare Tunnel
+
+Nanoclaw's web channel uses Cloudflare Tunnel for inbound HTTP — outbound-only connections, no firewall ports needed.
+
+**Architecture**: `Internet → subdomain.dalab.lol → Cloudflare Edge → Tunnel → cloudflared daemon → localhost:PORT → nanoclaw`
+
+**Config pipeline**: `tunnel.config.ts` (route table) → `tunnel.ts` (Pulumi resources) → tunnels + DNS CNAMEs + ingress rules
+
+**Route table** (`infra/cloudflare/tunnel.config.ts`):
+- `instances`: one tunnel per compute instance (keyed by name, e.g. `nanoclaw-gcp`)
+- `routes`: each creates an ingress rule + CNAME. Fields: `service`, `tenant`, `port`, `instance`
+- **Subdomain convention**: `{service}-nanoclaw-{tenant}.dalab.lol` (e.g. `stix-api-nanoclaw-anton.dalab.lol`)
+
+**Token flow**: Cloudflare stack creates tunnel → exports token → operator copies token to compute stack (`pulumi config set --secret nanoclaw:tunnelToken`) → cloud-init/deploy writes token to instance → cloudflared starts.
+
+**Port conventions**: 3001+ for stix-api. Each tenant gets a unique port assigned by `provision-tenant.sh` and stored in `~/.config/nanoclaw/port.env`.
+
+**Onboarding a new tenant**:
+1. Add route to `tunnel.config.ts`, run `pulumi up` on cloudflare stack (creates DNS + ingress)
+2. SSH to instance, run `sudo provision-tenant.sh <user> --port <port>` (creates OS user, sets port)
+3. Deploy nanoclaw: `gh workflow run deploy.yml -f tenant=<user> -f target=gcp`
+
+**Adding a new instance**:
+1. Add to `instances` in `tunnel.config.ts`, add routes
+2. Generate tunnel secret: `pulumi config set --secret tunnel:<name>Secret $(openssl rand -base64 32)`
+3. `pulumi up` on cloudflare stack → creates tunnel
+4. Copy token to compute stack: `pulumi config set --secret nanoclaw:tunnelToken "$(pulumi stack output tunnel_<name>_token --show-secrets)"`
+5. `pulumi up` on compute stack → instance gets cloudflared + token
 
 ## Operational Rules
 

@@ -43,6 +43,12 @@ if command -v dnf &>/dev/null; then
   dnf install -y fail2ban || true
   systemctl enable fail2ban || true
   systemctl start fail2ban || true
+
+  # --- Cloudflared ---
+  dnf install -y cloudflared || {
+    ARCH=$(uname -m | sed 's/aarch64/arm64/')
+    rpm -i "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${ARCH}.rpm"
+  }
 else
   # --- Docker CE (Ubuntu) ---
   apt-get update
@@ -89,6 +95,11 @@ else
   apt-get install -y fail2ban
   systemctl enable fail2ban
   systemctl start fail2ban
+
+  # --- Cloudflared ---
+  curl -fsSL "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-$(dpkg --print-architecture).deb" -o /tmp/cloudflared.deb
+  dpkg -i /tmp/cloudflared.deb
+  rm -f /tmp/cloudflared.deb
 fi
 
 # --- Ghostty terminfo (so TERM=xterm-ghostty works over SSH) ---
@@ -337,6 +348,27 @@ done
 
 # Nanoclaw-specific config (systemd service, .env, symlinks, .profile)
 # is managed by deploy-remote.sh so it can be updated without instance replacement.
+
+# --- Cloudflare Tunnel service ---
+mkdir -p /etc/cloudflared
+cat > /etc/systemd/system/cloudflared.service << 'CFDUNIT'
+[Unit]
+Description=Cloudflare Tunnel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/cloudflared/token.env
+ExecStart=/usr/bin/cloudflared tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+CFDUNIT
+systemctl daemon-reload
+# Not enabled yet — token written by Pulumi appendage below
 
 # --- Anti-idle cron (prevents OCI free-tier reclamation) ---
 # Only activates on OCI instances; harmless no-op on GCP.

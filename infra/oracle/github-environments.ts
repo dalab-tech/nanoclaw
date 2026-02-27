@@ -1,6 +1,6 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as github from "@pulumi/github";
-import { deployUser } from "./config";
+import { deployUser, tunnelToken } from "./config";
 import { githubProvider, cicdPrivateKeyOpenssh } from "./github";
 import { instance } from "./compute";
 import { dotenvContent } from "./dotenv";
@@ -48,3 +48,4 @@ envVar("deploy-user", "OCI_DEPLOY_USER", deployUser);
 envSecret("deploy-ssh-key", "OCI_DEPLOY_SSH_KEY", cicdPrivateKeyOpenssh);
 
 envSecret("dotenv", "NANOCLAW_DOTENV", dotenvContent);
+envSecret("tunnel-token", "TUNNEL_TOKEN", tunnelToken);

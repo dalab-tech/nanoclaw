@@ -18,6 +18,7 @@ import {
   githubRepo,
   gitUserName,
   gitUserEmail,
+  tunnelToken,
 } from "./config";
 import { subnet } from "./network";
 import { privateKeyOpenssh } from "./github";
@@ -62,8 +63,8 @@ const cloudInit = baseCloudInit.replace(
 );
 
 const userData = pulumi
-  .all([privateKeyOpenssh, gitUserName, gitUserEmail, dotenvContent])
-  .apply(([privKey, userName, userEmail, dotenv]) => {
+  .all([privateKeyOpenssh, gitUserName, gitUserEmail, dotenvContent, tunnelToken])
+  .apply(([privKey, userName, userEmail, dotenv, cfToken]) => {
     const repoUrl = `git@github.com:${githubOwner}/${githubRepo}.git`;
 
     const deployKeySection = `
@@ -95,7 +96,18 @@ chmod 600 /home/${deployUser}/${githubRepo}/.env
 chown ${deployUser}:${deployUser} /home/${deployUser}/${githubRepo}/.env
 `;
 
-    const fullScript = cloudInit + deployKeySection;
+    const cfSection = cfToken ? `
+# Written by Pulumi — Cloudflare Tunnel token
+mkdir -p /etc/cloudflared
+cat > /etc/cloudflared/token.env << 'CFTOKEN'
+TUNNEL_TOKEN=${cfToken}
+CFTOKEN
+chmod 600 /etc/cloudflared/token.env
+systemctl enable cloudflared
+systemctl start cloudflared
+` : "";
+
+    const fullScript = cloudInit + deployKeySection + cfSection;
     return Buffer.from(fullScript).toString("base64");
   });
 
