@@ -408,7 +408,10 @@ export class GroupQueue {
       if (baseState.pendingTasks.length > 0) {
         const task = baseState.pendingTasks.shift()!;
         this.runTask(nextJid, task).catch((err) =>
-          logger.error({ groupJid: nextJid, taskId: task.id, err }, 'Unhandled error in runTask (waiting)'),
+          logger.error(
+            { groupJid: nextJid, taskId: task.id, err },
+            'Unhandled error in runTask (waiting)',
+          ),
         );
       } else if (state.pendingMessages) {
         const threadTs = GroupQueue.threadTsFromKey(nextKey);
