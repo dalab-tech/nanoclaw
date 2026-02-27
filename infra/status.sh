@@ -40,7 +40,8 @@ fi
 if systemctl --user is-active nanoclaw >/dev/null 2>&1; then
   PID=$(systemctl --user show -p MainPID nanoclaw --value)
   UPTIME=$(ps -o etime= -p "$PID" 2>/dev/null | xargs)
-  ok "nanoclaw running (pid $PID, uptime $UPTIME)"
+  WEB_PORT=$(grep -m1 '^WEB_CHANNEL_PORT=' "$HOME/.config/nanoclaw/port.env" 2>/dev/null | cut -d= -f2-)
+  ok "nanoclaw running (pid $PID, uptime $UPTIME, port ${WEB_PORT:-?})"
 
   SVC_START=$(systemctl --user show -p ActiveEnterTimestamp nanoclaw --value 2>/dev/null)
   LOGS=$(journalctl --user -u nanoclaw --since="$SVC_START" --no-pager --output=cat 2>/dev/null)
