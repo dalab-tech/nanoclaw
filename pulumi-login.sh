@@ -15,6 +15,8 @@ current=$(pulumi whoami --json 2>/dev/null | python3 -c "import sys,json; print(
 
 echo ""
 echo -e "${BOLD}Pulumi Backend Switcher${RESET}"
+echo -e "${DIM}Each GCP project has its own state bucket. Switch between them${RESET}"
+echo -e "${DIM}to manage different projects' infrastructure with Pulumi.${RESET}"
 echo ""
 
 # Direct argument — skip menu
