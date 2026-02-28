@@ -3,8 +3,8 @@ config:
   gcp:project: dalab-anton
   gcp:region: us-central1
   nanoclaw:zone: us-central1-a
-  nanoclaw:machineType: e2-standard-2
-  nanoclaw:diskSizeGb: "50"
+  nanoclaw:machineType: e2-micro
+  nanoclaw:diskSizeGb: "30"
   github:antonNanoclawPAT:
     secure: v1:xYOZBzOPitQZIe8x:QfWYc+yi5fASnhZjXMJsNMb+qUYqoE1fn6xsyDHrnVN4CMdC6q+sf56fx6pTMpE+YaFD5buhQ2mmfvazMCMPP7ZYYWrQm1rfThPSxb5yLRcv8/BLxBeP3LnPXf5ahyP8Zal+g9Q6Lc1Gj6lTWA==
   nanoclaw:sshPrivateKey:
