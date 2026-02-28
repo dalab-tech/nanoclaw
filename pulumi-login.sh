@@ -9,7 +9,7 @@ BUCKETS=(
   "stix-dev-13dd5-pulumi-state"
 )
 
-current=$(pulumi whoami --json 2>/dev/null | grep -o '"url":"[^"]*"' | cut -d'"' -f4 || echo "not logged in")
+current=$(pulumi whoami --json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('url','unknown'))" 2>/dev/null || echo "not logged in")
 
 echo "Current backend: $current"
 echo
