@@ -142,12 +142,16 @@ class DomainEmailGroup extends pulumi.ComponentResource {
 // The destination inboxes must still be verified in Cloudflare (verification email).
 
 const dalabTechForwards: EmailForward[] = [
-  { name: 'hi', destination: 'dev.lamson+dalab.inbox@gmail.com' },
-  { name: 'hello', destination: 'dev.lamson+dalab.inbox@gmail.com' },
-  { name: 'us', destination: 'dev.lamson+dalab.inbox@gmail.com' },
-  { name: 'inbox', destination: 'dev.lamson+dalab.inbox@gmail.com' },
-  { name: 'support', destination: 'dev.lamson+dalab.support@gmail.com' },
+  // Inbox
+  { name: 'hi', destination: 'dalab.inbox+hi@gmail.com' },
+  { name: 'hello', destination: 'dalab.inbox+hello@gmail.com' },
+  { name: 'us', destination: 'dalab.inbox+us@gmail.com' },
+  { name: 'inbox', destination: 'dalab.inbox+inbox@gmail.com' },
+  { name: 'support', destination: 'dalab.inbox+support@gmail.com' },
+  { name: 'billing', destination: 'dalab.inbox+billing@gmail.com' },
+  // Bot
   { name: 'anton', destination: 'dev.lamson+dalab.anton@gmail.com' },
+  // Personal
   { name: 'son', destination: 'dev.lamson+dalab.son@gmail.com' },
   { name: 'dang', destination: 'dangns229+dalab.dang@gmail.com' },
   { name: 'thoai', destination: 'thoai.vhp+dalab.thoai@gmail.com' },
@@ -157,6 +161,7 @@ const tinaiDevForwards: EmailForward[] = [
   { name: 'hi', destination: 'dev.lamson+tinai.inbox@gmail.com' },
   { name: 'hello', destination: 'dev.lamson+tinai.inbox@gmail.com' },
   { name: 'inbox', destination: 'dev.lamson+tinai.inbox@gmail.com' },
+  // Feed
   { name: 'feed', destination: 'tinai.inbox+feed@gmail.com' },
 ];
 
@@ -202,7 +207,7 @@ if (isAnyEmailRoutingDomainConfigured && !accountId) {
 // Value can be either destination identifier or full import ID:
 //   <account_id>/<destination_identifier>
 
-export const emailDestinationAddresses = destinationEmails;
+export const emailDestinationAddresses = destinationEmails.sort((a, b) => a.localeCompare(b));
 
 export const emailDestinations =
   isAnyEmailRoutingDomainConfigured && accountId
