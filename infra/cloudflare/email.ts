@@ -146,9 +146,9 @@ const dalabTechForwards: EmailForward[] = [
   { name: 'hi', destination: 'dalab.inbox+hi@gmail.com' },
   { name: 'hello', destination: 'dalab.inbox+hello@gmail.com' },
   { name: 'us', destination: 'dalab.inbox+us@gmail.com' },
-  { name: 'inbox', destination: 'dalab.inbox+inbox@gmail.com' },
   { name: 'support', destination: 'dalab.inbox+support@gmail.com' },
-  // Billing - Need to update
+  // Inbox/Billing - Need to update
+  { name: 'inbox', destination: 'dev.lamson+dalab.inbox@gmail.com' },
   { name: 'billing', destination: 'dev.lamson+dalab.billing@gmail.com' },
   // Bot
   { name: 'anton', destination: 'dev.lamson+dalab.anton@gmail.com' },
@@ -183,6 +183,13 @@ const allForwards: EmailForward[] = [
   ...lamsonDevForwards,
 ];
 
+export const emailForwardingMap: Record<string, Record<string, string>> = {
+  'dalab.tech': Object.fromEntries(dalabTechForwards.map((f) => [`${f.name}@dalab.tech`, f.destination])),
+  'tinai.dev': Object.fromEntries(tinaiDevForwards.map((f) => [`${f.name}@tinai.dev`, f.destination])),
+  'iamson.dev': Object.fromEntries(iamsonDevForwards.map((f) => [`${f.name}@iamson.dev`, f.destination])),
+  'lamson.dev': Object.fromEntries(lamsonDevForwards.map((f) => [`${f.name}@lamson.dev`, f.destination])),
+};
+
 const destinationEmails = Array.from(new Set(allForwards.map(({ destination }) => destination))).sort();
 const emailConfig = new pulumi.Config('cloudflare-dns');
 const existingDestinationAddressIdsByEmail =
@@ -207,8 +214,6 @@ if (isAnyEmailRoutingDomainConfigured && !accountId) {
 //   {"dev.lamson+dalab.hi@gmail.com":"ea95132c15732412d22c1476fa83f27a"}
 // Value can be either destination identifier or full import ID:
 //   <account_id>/<destination_identifier>
-
-export const emailDestinationAddresses = destinationEmails.sort((a, b) => a.localeCompare(b));
 
 export const emailDestinations =
   isAnyEmailRoutingDomainConfigured && accountId

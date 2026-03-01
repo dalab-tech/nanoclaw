@@ -26,7 +26,7 @@ const outputs: Record<string, unknown> = {};
 // ─── Account-level: Email destinations ───────────────────────────────
 if (email.emailDestinations) {
   Object.assign(outputs, {
-    emailDestinationAddresses: email.emailDestinationAddresses,
+    emailForwardMapping: email.emailForwardingMap,
     emailDestinationAddressIds: email.emailDestinationAddressIds,
   });
 }
