@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BUCKET="${GCS_BACKUP_BUCKET:?GCS_BACKUP_BUCKET not set}"
 PROJECT_DIR="${HOME}/nanoclaw"
 LOG_TAG="nanoclaw-rsync"
+
+# Source bucket name from .env if not already in environment
+if [ -z "${GCS_BACKUP_BUCKET:-}" ] && [ -f "${PROJECT_DIR}/.env" ]; then
+  GCS_BACKUP_BUCKET=$(grep -m1 '^GCS_BACKUP_BUCKET=' "${PROJECT_DIR}/.env" | cut -d= -f2-)
+fi
+BUCKET="${GCS_BACKUP_BUCKET:?GCS_BACKUP_BUCKET not set — pass as env var or set in ~/nanoclaw/.env}"
 
 log() { logger -t "$LOG_TAG" "$1"; }
 
