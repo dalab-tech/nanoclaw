@@ -55,7 +55,18 @@ if [ "${1:-}" = "--remove" ]; then
 fi
 
 # --- Install ---
-cat <<'BANNER'
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null)
+if [ -n "$repo_root" ]; then
+  repo_name=$(basename "$repo_root")
+  subdir="${PWD#"$repo_root"}"
+  example_dir="${repo_name}${subdir}"
+  example_branch=$(git symbolic-ref --short HEAD 2>/dev/null || git rev-parse --short HEAD 2>/dev/null || echo "main")
+else
+  example_dir=$(basename "$PWD")
+  example_branch="main"
+fi
+
+cat <<BANNER
 claude-watch — minimal statusline for Claude Code
 https://github.com/xleddyl/claude-watch
 
@@ -65,7 +76,7 @@ This will:
 
 Your statusline will look like this:
 
-  dalab/anton • main
+  ${example_dir} • ${example_branch}
   opus 4.6 • 5h 42% • 7d 18% | ctx 19% (38k/200k)
 
 To remove later: bash install-claude-watch.sh --remove
