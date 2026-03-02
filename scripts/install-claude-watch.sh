@@ -43,6 +43,30 @@ if [ "${1:-}" = "--remove" ]; then
 fi
 
 # --- Install ---
+cat <<'BANNER'
+claude-watch — minimal statusline for Claude Code
+https://github.com/xleddyl/claude-watch
+
+This will:
+  1. Download 2 shell scripts to ~/.claude/
+  2. Add statusLine + hooks config to ~/.claude/settings.json
+
+Your statusline will look like this:
+
+  dalab/anton • main
+  opus 4.6 • 5h 42% • 7d 18% | ctx 19% (38k/200k)
+
+To remove later: bash install-claude-watch.sh --remove
+BANNER
+
+printf "\nProceed? [y/N] "
+read -r answer
+case "$answer" in
+  [yY]*) ;;
+  *) echo "Aborted."; exit 0 ;;
+esac
+
+echo ""
 echo "Installing claude-watch..."
 
 mkdir -p "$CLAUDE_DIR"
