@@ -4,7 +4,8 @@
 #
 # Usage:
 #   bash install-claude-watch.sh            # install
-#   bash install-claude-watch.sh --remove   # uninstall
+#   bash install-claude-watch.sh --remove    # uninstall
+#   bash install-claude-watch.sh --uninstall # uninstall
 
 set -euo pipefail
 
@@ -29,8 +30,19 @@ if ! command -v jq &>/dev/null; then
   esac
 fi
 
+# --- Help ---
+if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+  echo "Usage: bash install-claude-watch.sh [OPTION]"
+  echo ""
+  echo "  (no option)    Install claude-watch statusline"
+  echo "  --remove       Uninstall claude-watch"
+  echo "  --uninstall    Uninstall claude-watch"
+  echo "  --help, -h     Show this help"
+  exit 0
+fi
+
 # --- Uninstall ---
-if [ "${1:-}" = "--remove" ]; then
+if [ "${1:-}" = "--remove" ] || [ "${1:-}" = "--uninstall" ]; then
   echo "Removing claude-watch..."
 
   rm -f "$CLAUDE_DIR/fetch-usage.sh" "$CLAUDE_DIR/statusline-command.sh"
@@ -41,11 +53,15 @@ if [ "${1:-}" = "--remove" ]; then
 
   if [ -f "$SETTINGS" ]; then
     jq 'del(.statusLine)
-      | .hooks.PreToolUse |= (if . then map(select(.hooks | all(.command | contains("fetch-usage.sh") | not))) else . end)
-      | .hooks.Stop |= (if . then map(select(.hooks | all(.command | contains("fetch-usage.sh") | not))) else . end)
-      | if .hooks.PreToolUse == [] then del(.hooks.PreToolUse) else . end
-      | if .hooks.Stop == [] then del(.hooks.Stop) else . end
-      | if .hooks == {} then del(.hooks) else . end' "$SETTINGS" > "$SETTINGS.tmp"
+      | if (.hooks.PreToolUse | type) == "array" then
+          .hooks.PreToolUse |= map(select(.hooks | all(.command | contains("fetch-usage.sh") | not)))
+        else . end
+      | if (.hooks.Stop | type) == "array" then
+          .hooks.Stop |= map(select(.hooks | all(.command | contains("fetch-usage.sh") | not)))
+        else . end
+      | del(.hooks.PreToolUse | nulls, select(length == 0))
+      | del(.hooks.Stop | nulls, select(length == 0))
+      | if .hooks == {} or .hooks == null then del(.hooks) else . end' "$SETTINGS" > "$SETTINGS.tmp"
     mv "$SETTINGS.tmp" "$SETTINGS"
     echo "  Cleaned settings.json"
   fi
@@ -55,7 +71,12 @@ if [ "${1:-}" = "--remove" ]; then
 fi
 
 # --- Install ---
-repo_root=$(git rev-parse --show-toplevel 2>/dev/null)
+already_installed=false
+if [ -f "$CLAUDE_DIR/fetch-usage.sh" ] && [ -f "$CLAUDE_DIR/statusline-command.sh" ]; then
+  already_installed=true
+fi
+
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
 if [ -n "$repo_root" ]; then
   repo_name=$(basename "$repo_root")
   subdir="${PWD#"$repo_root"}"
@@ -89,7 +110,11 @@ printf " \033[2m\033[38;2;156;162;175m(38k/200k)\033[0m\n"
 echo ""
 echo "To remove later: bash install-claude-watch.sh --remove"
 
-printf "\nProceed? [y/N] "
+if [ "$already_installed" = true ]; then
+  printf "\nclaude-watch is already installed. Reinstall? [y/N] "
+else
+  printf "\nProceed? [y/N] "
+fi
 read -r answer
 case "$answer" in
   [yY]*) ;;
@@ -97,7 +122,11 @@ case "$answer" in
 esac
 
 echo ""
-echo "Installing claude-watch..."
+if [ "$already_installed" = true ]; then
+  echo "Reinstalling claude-watch..."
+else
+  echo "Installing claude-watch..."
+fi
 
 mkdir -p "$CLAUDE_DIR"
 
