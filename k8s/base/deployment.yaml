@@ -1,0 +1,169 @@
+# NanoClaw deployment with Docker-in-Docker sidecar
+# Each tenant gets one replica (SQLite + WebSocket require single-writer)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nanoclaw
+  namespace: tenant-TENANT_ID
+  labels:
+    app: nanoclaw
+    tenant: TENANT_ID
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # Single instance (SQLite + persistent WebSocket connections)
+  selector:
+    matchLabels:
+      app: nanoclaw
+      tenant: TENANT_ID
+  template:
+    metadata:
+      labels:
+        app: nanoclaw
+        tenant: TENANT_ID
+    spec:
+      serviceAccountName: nanoclaw-TENANT_ID
+      terminationGracePeriodSeconds: 120
+      nodeSelector:
+        pool: nanoclaw
+
+      containers:
+        # --- NanoClaw Orchestrator ---
+        - name: nanoclaw
+          image: REGISTRY_URL/nanoclaw:latest
+          ports:
+            - containerPort: 3100
+              name: web
+          env:
+            - name: INSTANCE_ID
+              value: TENANT_ID
+            - name: ASSISTANT_NAME
+              value: "Andy"
+            - name: MAX_CONCURRENT_CONTAINERS
+              value: "5"
+            - name: CONTAINER_IMAGE
+              value: REGISTRY_URL/nanoclaw-agent:latest
+            - name: WEB_CHANNEL_PORT
+              value: "3100"
+            - name: LOG_LEVEL
+              value: "info"
+            # Docker socket from DinD sidecar
+            - name: DOCKER_HOST
+              value: tcp://localhost:2375
+            # Secrets from Kubernetes Secret
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: nanoclaw-secrets
+                  key: anthropic-api-key
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          volumeMounts:
+            - name: state
+              mountPath: /app/store
+              subPath: store
+            - name: state
+              mountPath: /app/groups
+              subPath: groups
+            - name: state
+              mountPath: /app/data
+              subPath: data
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 3100
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 3100
+            initialDelaySeconds: 10
+            periodSeconds: 10
+
+        # --- Docker-in-Docker Sidecar ---
+        - name: dind
+          image: docker:27-dind
+          securityContext:
+            privileged: true
+          env:
+            - name: DOCKER_TLS_CERTDIR
+              value: "" # Disable TLS (localhost only)
+          ports:
+            - containerPort: 2375
+          resources:
+            requests:
+              cpu: "1"
+              memory: 2Gi
+            limits:
+              cpu: "4"
+              memory: 8Gi
+          volumeMounts:
+            - name: docker-data
+              mountPath: /var/lib/docker
+            # Share state so agent containers can mount group files
+            - name: state
+              mountPath: /app/store
+              subPath: store
+            - name: state
+              mountPath: /app/groups
+              subPath: groups
+            - name: state
+              mountPath: /app/data
+              subPath: data
+
+      volumes:
+        - name: state
+          persistentVolumeClaim:
+            claimName: nanoclaw-state
+        - name: docker-data
+          emptyDir:
+            sizeLimit: 50Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nanoclaw
+  namespace: tenant-TENANT_ID
+spec:
+  selector:
+    app: nanoclaw
+    tenant: TENANT_ID
+  ports:
+    - port: 80
+      targetPort: 3100
+      name: web
+  type: ClusterIP
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nanoclaw-state
+  namespace: tenant-TENANT_ID
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: premium-rwo
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: tenant-quota
+  namespace: tenant-TENANT_ID
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.cpu: "8"
+    limits.memory: 16Gi
+    persistentvolumeclaims: "3"
+    pods: "20"

@@ -1,0 +1,149 @@
+# CI/CD Pipeline for NanoClaw GKE Enterprise Deployment
+# Builds container images, pushes to Artifact Registry, and rolls out to GKE
+
+name: GKE Deploy
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tenant:
+        description: 'Specific tenant to update (blank = all)'
+        required: false
+        type: string
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: us-central1
+  GKE_CLUSTER: nanoclaw-prod
+  REGISTRY: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/nanoclaw
+
+jobs:
+  build:
+    name: Build & Push Images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Determine image tag
+        id: tag
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=sha-${GITHUB_SHA::8}" >> $GITHUB_OUTPUT
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install and build
+        run: |
+          npm ci
+          npm run build
+
+      # Build orchestrator image
+      - name: Build NanoClaw orchestrator image
+        run: |
+          docker build -t ${{ env.REGISTRY }}/nanoclaw:${{ steps.tag.outputs.tag }} \
+                        -t ${{ env.REGISTRY }}/nanoclaw:latest \
+                        .
+
+      # Build agent image
+      - name: Build NanoClaw agent image
+        run: |
+          docker build -t ${{ env.REGISTRY }}/nanoclaw-agent:${{ steps.tag.outputs.tag }} \
+                        -t ${{ env.REGISTRY }}/nanoclaw-agent:latest \
+                        ./container/
+
+      - name: Push images
+        run: |
+          docker push ${{ env.REGISTRY }}/nanoclaw:${{ steps.tag.outputs.tag }}
+          docker push ${{ env.REGISTRY }}/nanoclaw:latest
+          docker push ${{ env.REGISTRY }}/nanoclaw-agent:${{ steps.tag.outputs.tag }}
+          docker push ${{ env.REGISTRY }}/nanoclaw-agent:latest
+
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+
+  deploy:
+    name: Rolling Deploy to GKE
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER }}
+          location: ${{ env.REGION }}
+
+      - name: Rolling update tenant deployments
+        run: |
+          TAG="${{ needs.build.outputs.tag }}"
+          TENANT="${{ inputs.tenant }}"
+
+          if [ -n "$TENANT" ]; then
+            # Update specific tenant
+            NAMESPACES="tenant-${TENANT}"
+          else
+            # Update all tenant namespaces
+            NAMESPACES=$(kubectl get namespaces -l nanoclaw.io/managed-by=terraform -o jsonpath='{.items[*].metadata.name}')
+          fi
+
+          for NS in $NAMESPACES; do
+            echo "Updating deployment in namespace: $NS"
+            kubectl set image deployment/nanoclaw \
+              nanoclaw=${{ env.REGISTRY }}/nanoclaw:${TAG} \
+              -n "$NS"
+
+            # Update the CONTAINER_IMAGE env var so DinD pulls the right agent image
+            kubectl set env deployment/nanoclaw \
+              CONTAINER_IMAGE=${{ env.REGISTRY }}/nanoclaw-agent:${TAG} \
+              -n "$NS"
+
+            echo "Waiting for rollout in $NS..."
+            kubectl rollout status deployment/nanoclaw -n "$NS" --timeout=300s
+          done
+
+      - name: Verify health
+        run: |
+          TENANT="${{ inputs.tenant }}"
+          if [ -n "$TENANT" ]; then
+            NAMESPACES="tenant-${TENANT}"
+          else
+            NAMESPACES=$(kubectl get namespaces -l nanoclaw.io/managed-by=terraform -o jsonpath='{.items[*].metadata.name}')
+          fi
+
+          for NS in $NAMESPACES; do
+            POD=$(kubectl get pods -n "$NS" -l app=nanoclaw -o jsonpath='{.items[0].metadata.name}')
+            echo "Checking health for $NS ($POD)..."
+            kubectl exec -n "$NS" "$POD" -c nanoclaw -- curl -sf http://localhost:3100/healthz || echo "WARNING: Health check failed for $NS"
+          done

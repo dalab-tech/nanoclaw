@@ -1,0 +1,26 @@
+# Network policy for tenant isolation
+# Denies all inter-namespace traffic except from ingress controller
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: isolate-tenant
+  namespace: tenant-TENANT_ID
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  # Allow all egress (WhatsApp, Slack, Anthropic API need outbound)
+  egress:
+    - {}
+  ingress:
+    # Same namespace
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              nanoclaw.io/tenant: TENANT_ID
+    # Ingress controller
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx

@@ -1,0 +1,11 @@
+# Base namespace template for a NanoClaw tenant
+# Applied by Terraform or the Control Plane API
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tenant-TENANT_ID
+  labels:
+    nanoclaw.io/tenant: TENANT_ID
+    nanoclaw.io/managed-by: terraform
+  annotations:
+    nanoclaw.io/tenant-name: "TENANT_NAME"

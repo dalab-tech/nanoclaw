@@ -86,8 +86,16 @@ export class WebChannel implements Channel {
     const port = this.opts.port ?? WEB_CHANNEL_PORT;
     const app = new Hono();
 
-    // Health endpoint (no auth)
+    // Health endpoints (no auth) — used by Kubernetes probes
     app.get('/api/health', (c) => c.json({ status: 'ok' }));
+    app.get('/healthz', (c) => c.json({ status: 'ok' }));
+    app.get('/readyz', (c) => {
+      // Ready when web channel is connected. Other channels may connect async.
+      if (this.connected) {
+        return c.json({ status: 'ok' });
+      }
+      return c.json({ status: 'not ready' }, 503);
+    });
 
     // Auth middleware for all other /api routes
     app.use('/api/*', bearerAuth({ token: this.opts.authToken }));
