@@ -66,21 +66,28 @@ else
   example_branch="main"
 fi
 
-cat <<BANNER
-claude-watch — minimal statusline for Claude Code
-https://github.com/xleddyl/claude-watch
-
-This will:
-  1. Write 2 shell scripts to ~/.claude/
-  2. Add statusLine + hooks config to ~/.claude/settings.json
-
-Your statusline will look like this:
-
-  ${example_dir} • ${example_branch}
-  opus 4.6 • 5h 42% • 7d 18% | ctx 19% (38k/200k)
-
-To remove later: bash install-claude-watch.sh --remove
-BANNER
+SEP="\033[90m • \033[0m"
+echo "claude-watch — minimal statusline for Claude Code"
+echo ""
+echo "This will:"
+echo "  1. Write 2 shell scripts to ~/.claude/"
+echo "  2. Add statusLine + hooks config to ~/.claude/settings.json"
+echo ""
+echo "Your statusline will look like this:"
+echo ""
+printf "  \033[1m\033[38;2;76;208;222m%s\033[22m\033[0m" "$example_dir"
+printf "%b" "$SEP"
+printf "\033[1m\033[38;2;192;103;222m%s\033[22m\033[0m\n" "$example_branch"
+printf "  \033[38;5;208mopus 4.6\033[0m"
+printf "%b" "$SEP"
+printf "\033[38;2;156;162;175m5h 42%%\033[0m"
+printf "%b" "$SEP"
+printf "\033[38;2;156;162;175m7d 18%%\033[0m"
+printf "\033[90m | \033[0m"
+printf "\033[38;2;156;162;175mctx 19%%\033[0m"
+printf " \033[2m\033[38;2;156;162;175m(38k/200k)\033[0m\n"
+echo ""
+echo "To remove later: bash install-claude-watch.sh --remove"
 
 printf "\nProceed? [y/N] "
 read -r answer
