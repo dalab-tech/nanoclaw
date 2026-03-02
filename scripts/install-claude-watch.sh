@@ -36,7 +36,7 @@ if [ "${1:-}" = "--remove" ]; then
   rm -f "$CLAUDE_DIR/fetch-usage.sh" "$CLAUDE_DIR/statusline-command.sh"
   echo "  Deleted scripts"
 
-  rm -f /tmp/.claude_usage_cache /tmp/.claude_token_cache
+  rm -f "$CLAUDE_DIR/.usage_cache" "$CLAUDE_DIR/.token_cache"
   echo "  Cleared caches"
 
   if [ -f "$SETTINGS" ]; then
@@ -86,22 +86,27 @@ mkdir -p "$CLAUDE_DIR"
 # --- Write fetch-usage.sh ---
 cat > "$CLAUDE_DIR/fetch-usage.sh" <<'FETCH_SCRIPT'
 #!/bin/sh
-# Fetches Claude API usage stats and writes them to /tmp/.claude_usage_cache.
+# Fetches Claude API usage stats and writes them to ~/.claude/.usage_cache.
 # Line 1: five_hour.utilization (integer %)
 # Line 2: seven_day.utilization (integer %)
 # Line 3: five_hour.resets_at (raw ISO string, e.g. 2026-02-26T12:59:59.997656+00:00)
 # Line 4: seven_day.resets_at (raw ISO string)
 # All output is suppressed; meant to be run in background.
 
-CACHE_FILE="/tmp/.claude_usage_cache"
-TOKEN_CACHE="/tmp/.claude_token_cache"
+CACHE_FILE="$HOME/.claude/.usage_cache"
+TOKEN_CACHE="$HOME/.claude/.token_cache"
 CREDS_FILE="$HOME/.claude/.credentials.json"
 TOKEN_TTL=900  # 15 minutes
+
+# Get file modification time (macOS: stat -f %m, Linux: stat -c %Y)
+file_mtime() {
+  stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || echo 0
+}
 
 # --- get token (with 15-min cache to avoid repeated credential reads) ---
 token=""
 if [ -f "$TOKEN_CACHE" ]; then
-  cache_age=$(( $(date -u +%s) - $(stat -f %m "$TOKEN_CACHE" 2>/dev/null || echo 0) ))
+  cache_age=$(( $(date -u +%s) - $(file_mtime "$TOKEN_CACHE") ))
   if [ "$cache_age" -lt "$TOKEN_TTL" ]; then
     token=$(cat "$TOKEN_CACHE" 2>/dev/null)
   fi
@@ -116,13 +121,18 @@ if [ -z "$token" ]; then
     exit 0
   fi
   printf '%s' "$token" > "$TOKEN_CACHE"
+  chmod 600 "$TOKEN_CACHE"
 fi
+
+# Detect Claude Code version for user-agent
+claude_version=$(claude --version 2>/dev/null | head -1 | awk '{print $1}')
+ua="claude-code${claude_version:+/$claude_version}"
 
 usage_json=$(curl -s -m 3 \
   -H "accept: application/json" \
   -H "anthropic-beta: oauth-2025-04-20" \
   -H "authorization: Bearer $token" \
-  -H "user-agent: claude-code/2.1.11" \
+  -H "user-agent: $ua" \
   "https://api.anthropic.com/oauth/usage" 2>/dev/null)
 
 if [ -z "$usage_json" ]; then
@@ -168,7 +178,7 @@ if [ -d "${dir}/.git" ] || git -C "$dir" rev-parse --git-dir > /dev/null 2>&1; t
 fi
 
 # --- usage stats (5h / 7d) from cache ---
-CACHE_FILE="/tmp/.claude_usage_cache"
+CACHE_FILE="$HOME/.claude/.usage_cache"
 five_h=""
 seven_d=""
 five_h_reset=""
@@ -186,7 +196,8 @@ fi
 # --- compute_delta: given a raw ISO timestamp, returns human-readable time until reset ---
 compute_delta() {
   clean=$(echo "$1" | sed 's/\.[0-9]*//' | sed 's/[+-][0-9][0-9]:[0-9][0-9]$//' | sed 's/Z$//')
-  reset_epoch=$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%S" "$clean" "+%s" 2>/dev/null)
+  reset_epoch=$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%S" "$clean" "+%s" 2>/dev/null \
+             || TZ=UTC date -d "$clean" "+%s" 2>/dev/null)
   if [ -z "$reset_epoch" ]; then return; fi
   now_epoch=$(date -u "+%s")
   diff=$(( reset_epoch - now_epoch ))
@@ -258,47 +269,51 @@ STATUS_SCRIPT
 chmod +x "$CLAUDE_DIR/fetch-usage.sh" "$CLAUDE_DIR/statusline-command.sh"
 echo "  Wrote scripts to $CLAUDE_DIR/"
 
-# --- Merge config into settings.json ---
-PATCH=$(cat <<'JSON'
+# --- Merge config into settings.json (preserves existing hooks) ---
+HOOK_ENTRY=$(cat <<'JSON'
 {
-  "statusLine": {
-    "type": "command",
-    "command": "bash ~/.claude/statusline-command.sh"
-  },
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash ~/.claude/fetch-usage.sh > /dev/null 2>&1 &"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash ~/.claude/fetch-usage.sh > /dev/null 2>&1 &"
-          }
-        ]
-      }
-    ]
-  }
+  "matcher": "",
+  "hooks": [
+    {
+      "type": "command",
+      "command": "bash ~/.claude/fetch-usage.sh > /dev/null 2>&1 &"
+    }
+  ]
+}
+JSON
+)
+
+STATUSLINE=$(cat <<'JSON'
+{
+  "type": "command",
+  "command": "bash ~/.claude/statusline-command.sh"
 }
 JSON
 )
 
 if [ -f "$SETTINGS" ]; then
-  jq -s '.[0] * .[1]' "$SETTINGS" <(echo "$PATCH") > "$SETTINGS.tmp"
+  jq --argjson statusLine "$STATUSLINE" --argjson hookEntry "$HOOK_ENTRY" '
+    .statusLine = $statusLine
+    | .hooks //= {}
+    | .hooks.PreToolUse = (
+        (.hooks.PreToolUse // [])
+        | map(select(.hooks | all(.command | contains("fetch-usage.sh") | not)))
+      ) + [$hookEntry]
+    | .hooks.Stop = (
+        (.hooks.Stop // [])
+        | map(select(.hooks | all(.command | contains("fetch-usage.sh") | not)))
+      ) + [$hookEntry]
+  ' "$SETTINGS" > "$SETTINGS.tmp"
   mv "$SETTINGS.tmp" "$SETTINGS"
   echo "  Merged config into existing $SETTINGS"
 else
-  echo "$PATCH" | jq . > "$SETTINGS"
+  jq -n --argjson statusLine "$STATUSLINE" --argjson hookEntry "$HOOK_ENTRY" '{
+    statusLine: $statusLine,
+    hooks: {
+      PreToolUse: [$hookEntry],
+      Stop: [$hookEntry]
+    }
+  }' > "$SETTINGS"
   echo "  Created $SETTINGS"
 fi
 
