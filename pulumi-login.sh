@@ -1,15 +1,11 @@
 #!/usr/bin/env bash
 # Switch Pulumi state backend between GCS buckets.
+# Auto-discovers *-pulumi-state buckets across all accessible GCP projects.
 # Usage: ./pulumi-login.sh [bucket-name]
 
 set -euo pipefail
 
-# ── Registry: name → bucket ─────────────────────────────────────────────────
-# Add new projects here.
-NAMES=(  "dalab-anton"          "stix-dev"                )
-BUCKETS=("dalab-anton-pulumi-state" "stix-dev-13dd5-pulumi-state")
-
-BOLD="\033[1m"  DIM="\033[2m"  GREEN="\033[32m"  RESET="\033[0m"
+BOLD="\033[1m"  DIM="\033[2m"  GREEN="\033[32m"  YELLOW="\033[33m"  RESET="\033[0m"
 
 current=$(pulumi whoami --json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('url',''))" 2>/dev/null || true)
 
@@ -20,13 +16,47 @@ echo ""
 
 # Direct argument — skip menu
 if [[ ${1:-} ]]; then
-  pulumi login "gs://$1"
+  arg="${1#gs://}"
+  pulumi login "gs://$arg"
   exit 0
 fi
 
+# ── Discover Pulumi state buckets across all projects ────────────────────────
+
+projects=$(gcloud projects list --format="value(projectId)" 2>/dev/null)
+count=$(echo "$projects" | wc -l | tr -d ' ')
+
+printf "  Scanning %d projects...\r" "$count" >&2
+
+PROJECTS=()
+BUCKETS=()
+while IFS='|' read -r project bucket; do
+  [[ -n "$project" && -n "$bucket" ]] || continue
+  PROJECTS+=("$project")
+  BUCKETS+=("$bucket")
+done < <(
+  echo "$projects" \
+    | xargs -P10 -I{} bash -c \
+      'gcloud storage ls --project="{}" 2>/dev/null \
+       | grep -i pulumi-state \
+       | while read -r b; do echo "{}|${b%/}"; done' \
+    | sort
+)
+
+printf "\033[K" >&2
+
+if [[ ${#BUCKETS[@]} -eq 0 ]]; then
+  echo -e "  ${YELLOW}No Pulumi state buckets found.${RESET}"
+  echo -e "  ${DIM}Run ./pulumi-bootstrap.sh to create one.${RESET}"
+  echo ""
+  exit 1
+fi
+
+# ── Menu ─────────────────────────────────────────────────────────────────────
+
 for i in "${!BUCKETS[@]}"; do
-  bucket="gs://${BUCKETS[$i]}"
-  label="${NAMES[$i]}"
+  bucket="${BUCKETS[$i]}"
+  label="${PROJECTS[$i]}"
   if [[ "$bucket" == "$current" ]]; then
     echo -e "  ${BOLD}$((i+1)))${RESET} ${BOLD}$label${RESET}  ${DIM}$bucket${RESET}  ${GREEN}← current${RESET}"
   else
@@ -42,14 +72,14 @@ if [[ ! "$choice" =~ ^[0-9]+$ ]] || (( choice < 1 || choice > ${#BUCKETS[@]} ));
   exit 1
 fi
 
-selected="gs://${BUCKETS[$((choice-1))]}"
+selected="${BUCKETS[$((choice-1))]}"
 if [[ "$selected" == "$current" ]]; then
-  echo -e "  ${DIM}Already on ${NAMES[$((choice-1))]}${RESET}"
+  echo -e "  ${DIM}Already on ${PROJECTS[$((choice-1))]}${RESET}"
   exit 0
 fi
 
 echo ""
 pulumi login "$selected"
 echo ""
-echo -e "  ${GREEN}Switched to ${BOLD}${NAMES[$((choice-1))]}${RESET}"
+echo -e "  ${GREEN}Switched to ${BOLD}${PROJECTS[$((choice-1))]}${RESET}"
 echo ""
