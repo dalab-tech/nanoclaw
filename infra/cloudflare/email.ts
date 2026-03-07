@@ -143,13 +143,12 @@ class DomainEmailGroup extends pulumi.ComponentResource {
 
 const dalabTechForwards: EmailForward[] = [
   // Inbox
+  { name: 'inbox', destination: 'dalab.inbox+inbox@gmail.com' },
   { name: 'hi', destination: 'dalab.inbox+hi@gmail.com' },
   { name: 'hello', destination: 'dalab.inbox+hello@gmail.com' },
   { name: 'us', destination: 'dalab.inbox+us@gmail.com' },
   { name: 'support', destination: 'dalab.inbox+support@gmail.com' },
-  // Inbox/Billing - Need to update
-  { name: 'inbox', destination: 'dev.lamson+dalab.inbox@gmail.com' },
-  { name: 'billing', destination: 'dev.lamson+dalab.billing@gmail.com' },
+  { name: 'payments', destination: 'dalab.inbox+payments@gmail.com' },
   // Bot
   { name: 'anton', destination: 'dev.lamson+dalab.anton@gmail.com' },
   // Personal
