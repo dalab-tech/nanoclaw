@@ -7,7 +7,6 @@ set -euo pipefail
 # Usage:
 #   ./pulumi-bootstrap.sh                          # interactive prompts
 #   ./pulumi-bootstrap.sh --project my-proj        # skip project prompt
-#   ./pulumi-bootstrap.sh --project p --stack dev  # full non-interactive
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 PROJECT_ID=""
@@ -15,7 +14,6 @@ PROJECT_NAME=""
 REGION="us-central1"
 BUCKET_NAME=""
 BILLING_ACCOUNT=""
-STACK=""
 
 # ── Parse args ────────────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
@@ -25,7 +23,6 @@ while [[ $# -gt 0 ]]; do
     --region)   REGION="$2"; shift 2 ;;
     --bucket)   BUCKET_NAME="$2"; shift 2 ;;
     --billing)  BILLING_ACCOUNT="$2"; shift 2 ;;
-    --stack)    STACK="$2"; shift 2 ;;
     -h|--help)
       cat <<'EOF'
 Bootstrap a GCP project with Pulumi state backend on GCS.
@@ -38,7 +35,6 @@ Options:
   --region  REGION  GCS bucket region (default: us-central1)
   --bucket  NAME    State bucket name (default: <project>-pulumi-state)
   --billing ID      Billing account ID (auto-detected if you have exactly one)
-  --stack   NAME    Also run `pulumi stack init NAME`
   -h, --help        Show this help
 
 What it does:
@@ -49,7 +45,6 @@ What it does:
   4. Enables the Cloud Storage API
   5. Creates a GCS bucket with versioning + public access prevention
   6. Runs `pulumi login gs://<bucket>`
-  7. Optionally inits a Pulumi stack
 EOF
       exit 0 ;;
     *) echo "Unknown option: $1"; exit 1 ;;
@@ -269,7 +264,6 @@ else
 fi
 echo -e "  Region:   ${BOLD}$REGION${RESET}"
 echo -e "  Bucket:   ${BOLD}gs://$BUCKET_NAME${RESET}"
-[[ -n "$STACK" ]] && echo -e "  Stack:    ${BOLD}$STACK${RESET}"
 echo ""
 read -rp "  Proceed? [Y/n] " confirm
 [[ "${confirm:-Y}" =~ ^[Nn] ]] && { echo "  Aborted."; exit 0; }
@@ -324,19 +318,14 @@ info "Logging Pulumi into gs://$BUCKET_NAME ..."
 pulumi login "gs://$BUCKET_NAME"
 step "Pulumi logged in"
 
-if [[ -n "$STACK" ]]; then
-  info "Initializing stack: $STACK ..."
-  pulumi stack init "$STACK" 2>/dev/null || pulumi stack select "$STACK"
-  step "Stack ready: $STACK"
-fi
-
 # ── Done ─────────────────────────────────────────────────────────────────────
 header "Done"
 
-echo -e "  Project ${BOLD}$PROJECT_ID${RESET} is ready."
+echo -e "  Backend ${BOLD}gs://$BUCKET_NAME${RESET} is ready."
 echo ""
 echo "  Next steps:"
-[[ -z "$STACK" ]] && echo "    pulumi stack init <name>"
+echo "    cd <your-infra-dir>"
+echo "    pulumi new <template>         # e.g. gcp-typescript, typescript, etc."
 echo "    pulumi config set gcp:project $PROJECT_ID"
 echo "    pulumi up"
 echo ""
