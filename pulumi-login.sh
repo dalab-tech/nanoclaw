@@ -101,6 +101,21 @@ if [[ ${#BUCKETS[@]} -eq 0 ]]; then
   exit 1
 fi
 
+# ── Auto-select if only one bucket ────────────────────────────────────────────
+
+if [[ ${#BUCKETS[@]} -eq 1 ]]; then
+  if [[ "${BUCKETS[0]}" == "$current" ]]; then
+    echo -e "  ${DIM}Already on ${PROJECTS[0]}${RESET}"
+    exit 0
+  fi
+  echo -e "  Found: ${BOLD}${PROJECTS[0]}${RESET}  ${DIM}${BUCKETS[0]}${RESET}"
+  pulumi login "${BUCKETS[0]}"
+  echo ""
+  echo -e "  ${GREEN}Switched to ${BOLD}${PROJECTS[0]}${RESET}"
+  echo ""
+  exit 0
+fi
+
 # ── Menu ─────────────────────────────────────────────────────────────────────
 
 for i in "${!BUCKETS[@]}"; do
