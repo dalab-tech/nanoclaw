@@ -5,14 +5,21 @@ import { syncBrain } from './brain-sync.js';
 import {
   ASSISTANT_NAME,
   CONTAINER_NAME_PREFIX,
+  CREDENTIAL_PROXY_PORT,
   IDLE_TIMEOUT,
   INSTANCE_ID,
-  MAIN_GROUP_FOLDER,
   POLL_INTERVAL,
   STORE_DIR,
+  TIMEZONE,
   TRIGGER_PATTERN,
 } from './config.js';
+import { startCredentialProxy } from './credential-proxy.js';
 import { GitHubChannel } from './channels/github.js';
+import './channels/index.js';
+import {
+  getChannelFactory,
+  getRegisteredChannelNames,
+} from './channels/registry.js';
 import { SlackChannel } from './channels/slack.js';
 import { WebChannel } from './channels/web.js';
 import { WhatsAppChannel } from './channels/whatsapp.js';
@@ -26,6 +33,7 @@ import {
   cleanupOrphans,
   ensureContainerRuntimeRunning,
   probeRootlessDocker,
+  PROXY_BIND_HOST,
 } from './container-runtime.js';
 import {
   closeDatabase,
@@ -35,6 +43,7 @@ import {
   getAllTasks,
   getMessagesSince,
   getNewMessages,
+  getRegisteredGroup,
   getRouterState,
   initDatabase,
   setRegisteredGroup,
@@ -48,6 +57,17 @@ import { GroupQueue } from './group-queue.js';
 import { resolveGroupFolderPath } from './group-folder.js';
 import { startIpcWatcher } from './ipc.js';
 import { findChannel, formatMessages, formatOutbound } from './router.js';
+import {
+  restoreRemoteControl,
+  startRemoteControl,
+  stopRemoteControl,
+} from './remote-control.js';
+import {
+  isSenderAllowed,
+  isTriggerAllowed,
+  loadSenderAllowlist,
+  shouldDropMessage,
+} from './sender-allowlist.js';
 import { startSchedulerLoop } from './task-scheduler.js';
 import { Channel, NewMessage, RegisteredGroup } from './types.js';
 import { logger } from './logger.js';
@@ -195,7 +215,7 @@ async function processGroupMessages(
     };
   }
 
-  const isMainGroup = group.folder === MAIN_GROUP_FOLDER;
+  const isMainGroup = group.isMain === true;
   const isBotThread = threadTs != null && botRepliedThreads.has(threadTs);
   const cKey = cursorKey(chatJid, threadTs);
 
@@ -230,8 +250,11 @@ async function processGroupMessages(
 
   // For non-main groups, check if trigger is required and present
   if (!isMainGroup && group.requiresTrigger !== false && !isBotThread) {
-    const hasTrigger = missedMessages.some((m) =>
-      TRIGGER_PATTERN.test(m.content.trim()),
+    const allowlistCfg = loadSenderAllowlist();
+    const hasTrigger = missedMessages.some(
+      (m) =>
+        TRIGGER_PATTERN.test(m.content.trim()) &&
+        (m.is_from_me || isTriggerAllowed(chatJid, m.sender, allowlistCfg)),
     );
     if (!hasTrigger && !wipContent) return true;
   }
@@ -264,8 +287,8 @@ async function processGroupMessages(
   }
 
   const prompt = wipContent
-    ? `[CONTEXT FROM INTERRUPTED RUN]\n${wipContent}\n\n[NEW MESSAGES]\n${formatMessages(messagesToProcess)}`
-    : formatMessages(messagesToProcess);
+    ? `[CONTEXT FROM INTERRUPTED RUN]\n${wipContent}\n\n[NEW MESSAGES]\n${formatMessages(messagesToProcess, TIMEZONE)}`
+    : formatMessages(messagesToProcess, TIMEZONE);
 
   // Determine reply thread for thread-aware channels
   const replyThreadTs = threadTs ?? messagesToProcess[0]?.thread_ts;
@@ -392,7 +415,7 @@ async function runAgent(
   threadTs?: string,
   onOutput?: (output: ContainerOutput) => Promise<void>,
 ): Promise<'success' | 'error'> {
-  const isMain = group.folder === MAIN_GROUP_FOLDER;
+  const isMain = group.isMain === true;
   const sessionId = sessions[group.folder];
 
   // Update tasks snapshot for container to read (filtered by group)
@@ -522,7 +545,7 @@ async function startMessageLoop(): Promise<void> {
             continue;
           }
 
-          const isMainGroup = group.folder === MAIN_GROUP_FOLDER;
+          const isMainGroup = group.isMain === true;
           const isBotThread =
             threadTs != null && botRepliedThreads.has(threadTs);
           const needsTrigger =
@@ -530,8 +553,12 @@ async function startMessageLoop(): Promise<void> {
 
           // For non-main groups, only act on trigger messages.
           if (needsTrigger) {
-            const hasTrigger = groupMessages.some((m) =>
-              TRIGGER_PATTERN.test(m.content.trim()),
+            const allowlistCfg = loadSenderAllowlist();
+            const hasTrigger = groupMessages.some(
+              (m) =>
+                TRIGGER_PATTERN.test(m.content.trim()) &&
+                (m.is_from_me ||
+                  isTriggerAllowed(chatJid, m.sender, allowlistCfg)),
             );
             if (!hasTrigger) continue;
           }
@@ -547,7 +574,7 @@ async function startMessageLoop(): Promise<void> {
           );
           const messagesToSend =
             allPending.length > 0 ? allPending : groupMessages;
-          const formatted = formatMessages(messagesToSend);
+          const formatted = formatMessages(messagesToSend, TIMEZONE);
 
           if (queue.sendMessage(chatJid, formatted, threadTs)) {
             logger.debug(
@@ -663,6 +690,13 @@ async function main(): Promise<void> {
   logger.info('Database initialized');
   loadState();
   syncBrain();
+  restoreRemoteControl();
+
+  // Start credential proxy (containers route API calls through this)
+  const proxyServer = await startCredentialProxy(
+    CREDENTIAL_PROXY_PORT,
+    PROXY_BIND_HOST,
+  );
 
   // Graceful shutdown handler
   const shutdown = async (signal: string) => {
@@ -712,6 +746,7 @@ async function main(): Promise<void> {
       setRouterState('restart_notified_jids', JSON.stringify(notifiedJids));
     }
 
+    proxyServer.close();
     // Disconnect channels first to stop accepting new messages during shutdown
     for (const ch of channels) await ch.disconnect();
     await queue.shutdown(10000);
@@ -721,9 +756,76 @@ async function main(): Promise<void> {
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
 
+  // Handle /remote-control and /remote-control-end commands
+  async function handleRemoteControl(
+    command: string,
+    chatJid: string,
+    msg: NewMessage,
+  ): Promise<void> {
+    const group = registeredGroups[chatJid];
+    if (!group?.isMain) {
+      logger.warn(
+        { chatJid, sender: msg.sender },
+        'Remote control rejected: not main group',
+      );
+      return;
+    }
+
+    const channel = findChannel(channels, chatJid);
+    if (!channel) return;
+
+    if (command === '/remote-control') {
+      const result = await startRemoteControl(
+        msg.sender,
+        chatJid,
+        process.cwd(),
+      );
+      if (result.ok) {
+        await channel.sendMessage(chatJid, result.url);
+      } else {
+        await channel.sendMessage(
+          chatJid,
+          `Remote Control failed: ${result.error}`,
+        );
+      }
+    } else {
+      const result = stopRemoteControl();
+      if (result.ok) {
+        await channel.sendMessage(chatJid, 'Remote Control session ended.');
+      } else {
+        await channel.sendMessage(chatJid, result.error);
+      }
+    }
+  }
+
   // Channel callbacks (shared by all channels)
   const channelOpts = {
-    onMessage: (_chatJid: string, msg: NewMessage) => {
+    onMessage: (chatJid: string, msg: NewMessage) => {
+      // Remote control commands — intercept before storage
+      const trimmed = msg.content.trim();
+      if (trimmed === '/remote-control' || trimmed === '/remote-control-end') {
+        handleRemoteControl(trimmed, chatJid, msg).catch((err) =>
+          logger.error({ err, chatJid }, 'Remote control command error'),
+        );
+        return;
+      }
+
+      // Sender allowlist drop mode: discard messages from denied senders before storing
+      if (!msg.is_from_me && !msg.is_bot_message && registeredGroups[chatJid]) {
+        const cfg = loadSenderAllowlist();
+        if (
+          shouldDropMessage(chatJid, cfg) &&
+          !isSenderAllowed(chatJid, msg.sender, cfg)
+        ) {
+          if (cfg.logDenied) {
+            logger.debug(
+              { chatJid, sender: msg.sender },
+              'sender-allowlist: dropping message (drop mode)',
+            );
+          }
+          return;
+        }
+      }
       try {
         storeMessage(msg);
       } catch (err) {
@@ -823,6 +925,21 @@ async function main(): Promise<void> {
     logger.info('Web: no WEB_AUTH_TOKEN in .env, skipping');
   }
 
+  // Also connect any registry-based channels (installed via skills)
+  for (const channelName of getRegisteredChannelNames()) {
+    const factory = getChannelFactory(channelName)!;
+    const channel = factory(channelOpts);
+    if (!channel) {
+      logger.warn(
+        { channel: channelName },
+        'Channel installed but credentials missing — skipping. Check .env or re-run the channel skill.',
+      );
+      continue;
+    }
+    channels.push(channel);
+    await channel.connect();
+  }
+
   if (channels.length === 0) {
     logger.error(
       'No channels configured. Run /setup to configure at least one channel.',
@@ -879,11 +996,31 @@ async function main(): Promise<void> {
     },
     registeredGroups: () => registeredGroups,
     registerGroup,
-    syncGroupMetadata: (force) =>
-      whatsapp?.syncGroupMetadata(force) ?? Promise.resolve(),
+    syncGroups: async (force: boolean) => {
+      await Promise.all(
+        channels
+          .filter((ch) => ch.syncGroups)
+          .map((ch) => ch.syncGroups!(force)),
+      );
+    },
     getAvailableGroups,
     writeGroupsSnapshot: (gf, im, ag, rj) =>
       writeGroupsSnapshot(gf, im, ag, rj),
+    onTasksChanged: () => {
+      const tasks = getAllTasks();
+      const taskRows = tasks.map((t) => ({
+        id: t.id,
+        groupFolder: t.group_folder,
+        prompt: t.prompt,
+        schedule_type: t.schedule_type,
+        schedule_value: t.schedule_value,
+        status: t.status,
+        next_run: t.next_run,
+      }));
+      for (const group of Object.values(registeredGroups)) {
+        writeTasksSnapshot(group.folder, group.isMain === true, taskRows);
+      }
+    },
   });
   queue.setProcessMessagesFn(processGroupMessages);
   recoverPendingMessages();
@@ -900,7 +1037,7 @@ async function main(): Promise<void> {
         null,
       );
       if (pending.length > 0) {
-        const isMainGroup = group.folder === MAIN_GROUP_FOLDER;
+        const isMainGroup = group.isMain === true;
         const needsTrigger = !isMainGroup && group.requiresTrigger !== false;
         const hasTrigger =
           !needsTrigger ||

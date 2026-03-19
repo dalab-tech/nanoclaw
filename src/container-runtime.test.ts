@@ -70,7 +70,7 @@ describe('readonlyMountArgs', () => {
 describe('stopContainer', () => {
   it('returns stop command using CONTAINER_RUNTIME_BIN', () => {
     expect(stopContainer('nanoclaw-test-123')).toBe(
-      `${CONTAINER_RUNTIME_BIN} stop nanoclaw-test-123`,
+      `${CONTAINER_RUNTIME_BIN} stop -t 1 nanoclaw-test-123`,
     );
   });
 });
@@ -163,12 +163,12 @@ describe('cleanupOrphans', () => {
     expect(mockExecSync).toHaveBeenCalledTimes(3);
     expect(mockExecSync).toHaveBeenNthCalledWith(
       2,
-      `${CONTAINER_RUNTIME_BIN} stop nanoclaw-testuser-group1-111`,
+      `${CONTAINER_RUNTIME_BIN} stop -t 1 nanoclaw-testuser-group1-111`,
       { stdio: 'pipe' },
     );
     expect(mockExecSync).toHaveBeenNthCalledWith(
       3,
-      `${CONTAINER_RUNTIME_BIN} stop nanoclaw-testuser-group2-222`,
+      `${CONTAINER_RUNTIME_BIN} stop -t 1 nanoclaw-testuser-group2-222`,
       { stdio: 'pipe' },
     );
     expect(logger.info).toHaveBeenCalledWith(
