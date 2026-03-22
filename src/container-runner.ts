@@ -7,8 +7,12 @@ import fs from 'fs';
 import path from 'path';
 
 import {
+  CONTAINER_CPUS,
   CONTAINER_IMAGE,
   CONTAINER_MAX_OUTPUT_SIZE,
+  CONTAINER_MEMORY,
+  CONTAINER_NAME_PREFIX,
+  CONTAINER_PIDS_LIMIT,
   CONTAINER_TIMEOUT,
   CREDENTIAL_PROXY_PORT,
   DATA_DIR,
@@ -16,12 +20,15 @@ import {
   IDLE_TIMEOUT,
   TIMEZONE,
 } from './config.js';
+import { getBrainPath } from './brain-sync.js';
 import { resolveGroupFolderPath, resolveGroupIpcPath } from './group-folder.js';
 import { logger } from './logger.js';
 import {
   CONTAINER_HOST_GATEWAY,
   CONTAINER_RUNTIME_BIN,
+  detectDockerSocket,
   hostGatewayArgs,
+  isRootlessDocker,
   readonlyMountArgs,
   stopContainer,
 } from './container-runtime.js';
@@ -110,6 +117,23 @@ function buildVolumeMounts(
         containerPath: '/workspace/global',
         readonly: true,
       });
+    }
+  }
+
+  // Mount base group folder read-only for thread groups
+  if (group.folder.includes('-t-')) {
+    const baseFolder = group.folder.split('-t-')[0];
+    try {
+      const baseFolderDir = resolveGroupFolderPath(baseFolder);
+      if (fs.existsSync(baseFolderDir)) {
+        mounts.push({
+          hostPath: baseFolderDir,
+          containerPath: '/workspace/group-base',
+          readonly: true,
+        });
+      }
+    } catch {
+      // Invalid base folder name — skip mount
     }
   }
 
@@ -209,12 +233,25 @@ function buildVolumeMounts(
     mounts.push(...validatedMounts);
   }
 
+  // Mount Anton's brain (company context) as an additional directory.
+  // The agent-runner auto-discovers /workspace/extra/* and passes them
+  // to the SDK as additionalDirectories, which loads their CLAUDE.md.
+  const brainPath = getBrainPath();
+  if (brainPath) {
+    mounts.push({
+      hostPath: brainPath,
+      containerPath: '/workspace/extra/brain',
+      readonly: true,
+    });
+  }
+
   return mounts;
 }
 
 function buildContainerArgs(
   mounts: VolumeMount[],
   containerName: string,
+  isMain: boolean,
 ): string[] {
   const args: string[] = ['run', '-i', '--rm', '--name', containerName];
 
@@ -251,11 +288,35 @@ function buildContainerArgs(
     args.push('-e', 'HOME=/home/node');
   }
 
+  // Resource limits (enterprise hardening)
+  if (CONTAINER_CPUS) args.push('--cpus', CONTAINER_CPUS);
+  if (CONTAINER_MEMORY) args.push('--memory', CONTAINER_MEMORY);
+  if (CONTAINER_PIDS_LIMIT) args.push('--pids-limit', CONTAINER_PIDS_LIMIT);
+
   for (const mount of mounts) {
     if (mount.readonly) {
       args.push(...readonlyMountArgs(mount.hostPath, mount.containerPath));
     } else {
       args.push('-v', `${mount.hostPath}:${mount.containerPath}`);
+    }
+  }
+
+  // Mount Docker socket for main group. In rootless Docker the socket path
+  // differs; always map to /var/run/docker.sock inside the container.
+  if (isMain) {
+    const dockerSock = detectDockerSocket();
+    if (dockerSock) {
+      args.push('-v', `${dockerSock}:/var/run/docker.sock`);
+      // In rootful mode, pass docker GID so the container user can access the socket.
+      // In rootless mode, the socket is user-owned so --group-add is unnecessary.
+      if (!isRootlessDocker()) {
+        try {
+          const stat = fs.statSync(dockerSock);
+          args.push('--group-add', String(stat.gid));
+        } catch {
+          // Socket stat failed — skip group-add, mount still works
+        }
+      }
     }
   }
 
@@ -277,8 +338,8 @@ export async function runContainerAgent(
 
   const mounts = buildVolumeMounts(group, input.isMain);
   const safeName = group.folder.replace(/[^a-zA-Z0-9-]/g, '-');
-  const containerName = `nanoclaw-${safeName}-${Date.now()}`;
-  const containerArgs = buildContainerArgs(mounts, containerName);
+  const containerName = `${CONTAINER_NAME_PREFIX}-${safeName}-${Date.now()}`;
+  const containerArgs = buildContainerArgs(mounts, containerName, input.isMain);
 
   logger.debug(
     {

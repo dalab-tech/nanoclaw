@@ -6,7 +6,17 @@ import { readEnvFile } from './env.js';
 // Read config values from .env (falls back to process.env).
 // Secrets (API keys, tokens) are NOT read here — they are loaded only
 // by the credential proxy (credential-proxy.ts), never exposed to containers.
-const envConfig = readEnvFile(['ASSISTANT_NAME', 'ASSISTANT_HAS_OWN_NUMBER']);
+// Non-secret config values for multi-tenant isolation and resource limits are read here.
+const envConfig = readEnvFile([
+  'ASSISTANT_NAME',
+  'ASSISTANT_HAS_OWN_NUMBER',
+  'INSTANCE_ID',
+  'CONTAINER_CPUS',
+  'CONTAINER_MEMORY',
+  'CONTAINER_PIDS_LIMIT',
+  'LITESTREAM_ENABLED',
+  'GCS_BACKUP_BUCKET',
+]);
 
 export const ASSISTANT_NAME =
   process.env.ASSISTANT_NAME || envConfig.ASSISTANT_NAME || 'Andy';
@@ -58,6 +68,53 @@ export const MAX_CONCURRENT_CONTAINERS = Math.max(
   parseInt(process.env.MAX_CONCURRENT_CONTAINERS || '5', 10) || 5,
 );
 
+// Multi-tenant instance isolation — prefixes all container names
+function getOsUsername(): string {
+  try {
+    return os.userInfo().username;
+  } catch {
+    // os.userInfo() throws on musl-based containers and some CI environments
+    return process.env.USER || process.env.LOGNAME || 'default';
+  }
+}
+
+function safeInstanceId(): string {
+  const raw =
+    process.env.INSTANCE_ID || envConfig.INSTANCE_ID || getOsUsername();
+  // Strip non-alphanumeric chars, limit to 32 chars (Docker name limit is 128)
+  const sanitized = raw.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 32);
+  return sanitized || 'default';
+}
+
+export const INSTANCE_ID = safeInstanceId();
+export const CONTAINER_NAME_PREFIX = `nanoclaw-${INSTANCE_ID}`;
+
+// Container resource limits (empty/0 = no limit, preserves current behavior)
+export const CONTAINER_CPUS =
+  process.env.CONTAINER_CPUS || envConfig.CONTAINER_CPUS || '';
+export const CONTAINER_MEMORY =
+  process.env.CONTAINER_MEMORY || envConfig.CONTAINER_MEMORY || '';
+export const CONTAINER_PIDS_LIMIT =
+  process.env.CONTAINER_PIDS_LIMIT || envConfig.CONTAINER_PIDS_LIMIT || '';
+
+// Validate resource limits early so operators get clear errors instead of
+// cryptic Docker failures at container spawn time.
+if (CONTAINER_CPUS && !/^\d+(\.\d+)?$/.test(CONTAINER_CPUS)) {
+  console.warn(
+    `WARNING: CONTAINER_CPUS="${CONTAINER_CPUS}" is not a valid number (e.g. "0.5", "2")`,
+  );
+}
+if (CONTAINER_MEMORY && !/^\d+[bkmg]?$/i.test(CONTAINER_MEMORY)) {
+  console.warn(
+    `WARNING: CONTAINER_MEMORY="${CONTAINER_MEMORY}" is not a valid Docker memory value (e.g. "512m", "1g")`,
+  );
+}
+if (CONTAINER_PIDS_LIMIT && !/^\d+$/.test(CONTAINER_PIDS_LIMIT)) {
+  console.warn(
+    `WARNING: CONTAINER_PIDS_LIMIT="${CONTAINER_PIDS_LIMIT}" is not a valid integer`,
+  );
+}
+
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -67,7 +124,26 @@ export const TRIGGER_PATTERN = new RegExp(
   'i',
 );
 
+// Legacy constant for web channel compatibility
+export const MAIN_GROUP_FOLDER = 'main';
+
+// Web channel API port
+export const WEB_CHANNEL_PORT = parseInt(
+  process.env.WEB_CHANNEL_PORT || '3100',
+  10,
+);
+
 // Timezone for scheduled tasks (cron expressions, etc.)
 // Uses system timezone by default
 export const TIMEZONE =
   process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+// Anton's brain: company context cloned from a git repo
+export const BRAIN_REPO_URL = process.env.BRAIN_REPO_URL || '';
+export const BRAIN_DIR = path.resolve(DATA_DIR, 'brain');
+
+// Litestream backup (GCE only — disabled on local dev)
+export const LITESTREAM_ENABLED =
+  (process.env.LITESTREAM_ENABLED || envConfig.LITESTREAM_ENABLED) === 'true';
+export const GCS_BACKUP_BUCKET =
+  process.env.GCS_BACKUP_BUCKET || envConfig.GCS_BACKUP_BUCKET || '';

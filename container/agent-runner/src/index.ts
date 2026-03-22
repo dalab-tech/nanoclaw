@@ -324,6 +324,42 @@ function waitForIpcMessage(): Promise<string | null> {
 }
 
 /**
+ * Build MCP servers config, conditionally including stix if credentials are available.
+ */
+function buildMcpServers(
+  mcpServerPath: string,
+  containerInput: ContainerInput,
+  sdkEnv: Record<string, string | undefined>,
+): Record<string, McpServerConfig> {
+  const servers: Record<string, McpServerConfig> = {
+    nanoclaw: {
+      command: 'node',
+      args: [mcpServerPath],
+      env: {
+        NANOCLAW_CHAT_JID: containerInput.chatJid,
+        NANOCLAW_GROUP_FOLDER: containerInput.groupFolder,
+        NANOCLAW_IS_MAIN: containerInput.isMain ? '1' : '0',
+      },
+    },
+  };
+
+  const stixUrl = sdkEnv.STIX_MCP_URL;
+  const stixApiKey = sdkEnv.STIX_API_KEY;
+  if (stixUrl && stixApiKey) {
+    servers.stix = {
+      type: 'http',
+      url: stixUrl,
+      headers: {
+        'X-MCP-API-Key': stixApiKey,
+      },
+    };
+    log('Stix MCP server configured');
+  }
+
+  return servers;
+}
+
+/**
  * Run a single query and stream results via writeOutput.
  * Uses MessageStream (AsyncIterable) to keep isSingleUserTurn=false,
  * allowing agent teams subagents to run to completion.
@@ -366,11 +402,16 @@ async function runQuery(
   let messageCount = 0;
   let resultCount = 0;
 
-  // Load global CLAUDE.md as additional system context (shared across all groups)
+  // Load global CLAUDE.md and base group CLAUDE.md as additional system context
   const globalClaudeMdPath = '/workspace/global/CLAUDE.md';
-  let globalClaudeMd: string | undefined;
+  const baseGroupClaudeMdPath = '/workspace/group-base/CLAUDE.md';
+  let systemPromptAppend = '';
   if (!containerInput.isMain && fs.existsSync(globalClaudeMdPath)) {
-    globalClaudeMd = fs.readFileSync(globalClaudeMdPath, 'utf-8');
+    systemPromptAppend += fs.readFileSync(globalClaudeMdPath, 'utf-8');
+  }
+  if (fs.existsSync(baseGroupClaudeMdPath)) {
+    if (systemPromptAppend) systemPromptAppend += '\n\n';
+    systemPromptAppend += fs.readFileSync(baseGroupClaudeMdPath, 'utf-8');
   }
 
   // Discover additional directories mounted at /workspace/extra/*
@@ -396,8 +437,8 @@ async function runQuery(
       additionalDirectories: extraDirs.length > 0 ? extraDirs : undefined,
       resume: sessionId,
       resumeSessionAt: resumeAt,
-      systemPrompt: globalClaudeMd
-        ? { type: 'preset' as const, preset: 'claude_code' as const, append: globalClaudeMd }
+      systemPrompt: systemPromptAppend
+        ? { type: 'preset' as const, preset: 'claude_code' as const, append: systemPromptAppend }
         : undefined,
       allowedTools: [
         'Bash',
@@ -407,23 +448,14 @@ async function runQuery(
         'TeamCreate', 'TeamDelete', 'SendMessage',
         'TodoWrite', 'ToolSearch', 'Skill',
         'NotebookEdit',
-        'mcp__nanoclaw__*'
+        'mcp__nanoclaw__*',
+        'mcp__stix__*'
       ],
       env: sdkEnv,
       permissionMode: 'bypassPermissions',
       allowDangerouslySkipPermissions: true,
       settingSources: ['project', 'user'],
-      mcpServers: {
-        nanoclaw: {
-          command: 'node',
-          args: [mcpServerPath],
-          env: {
-            NANOCLAW_CHAT_JID: containerInput.chatJid,
-            NANOCLAW_GROUP_FOLDER: containerInput.groupFolder,
-            NANOCLAW_IS_MAIN: containerInput.isMain ? '1' : '0',
-          },
-        },
-      },
+      mcpServers: buildMcpServers(mcpServerPath, containerInput, sdkEnv),
       hooks: {
         PreCompact: [{ hooks: [createPreCompactHook(containerInput.assistantName)] }],
       },
