@@ -1,0 +1,27 @@
+encryptionsalt: v1:yRIg3H53ZJc=:v1:5OWTHSH1XZ/wMki+:Cx7LKAreytowL2L2D02OhlA/Lu1ysg==
+config:
+  gcp:project: dalab-anton
+  gcp:region: us-central1
+  nanoclaw:zone: us-central1-a
+  nanoclaw:machineType: e2-micro
+  nanoclaw:diskSizeGb: "30"
+  github:antonNanoclawPAT:
+    secure: v1:xYOZBzOPitQZIe8x:QfWYc+yi5fASnhZjXMJsNMb+qUYqoE1fn6xsyDHrnVN4CMdC6q+sf56fx6pTMpE+YaFD5buhQ2mmfvazMCMPP7ZYYWrQm1rfThPSxb5yLRcv8/BLxBeP3LnPXf5ahyP8Zal+g9Q6Lc1Gj6lTWA==
+  nanoclaw:sshPrivateKey:
+    secure: v1:Dls/NKn40mhkp2ZH:xwq1TRAb5gWCgBoD/GKQanf52cNjqBEDkyKj6HmCpfu0LGlWZY3//s4uOUQIQWoDLOenH8rOUTMlxvgwSKd/QCbB0SglrZRddAU8SV+2uStSVjR9lWd4ECnAtikIaM+QJwPeNd8DoCJ8LKBokmz2KUvzDrjbu3zuhy6Pm7DpzfzaPIrUikKRIH3118S6UkG+LoUXnOvuJUjeP4ckaDluvpEZP42+q5oqpWxXVtLONSYrqWMXaJF/lRv3md7LAdDQ2hyXTC+poWJSAdkdivBbqIvbtDUtqvcX2Z8amVge12xwfXCFHGiDxXMI3gaLidkC0z3LLYXaeDbC1ikuUcbzljvTYfsCUNxymccozkSsutvCuMuAZhb++1Ufv2FD803ybwHl90jve6QueX5abauRRau6f/lwLUfnHpsLA8CHDEdOz9WN6PUsHpXEzTRnwdau/vy4aBVWLyhUmBkGqBCWoS6l4y/fsZ+nvfqqjGRXBBLKd8bY+7IgTrEcacCL7es05bi6u9ZtezY9JeTw6vqzRShOAi2BMv3V4oEa52jaxfDGF8gbJ7D6Y6/0
+  nanoclaw:githubToken:
+    secure: v1:eZPNQ5TR5fx/dmUf:nNU1pLoMub2tePS4chX4acdURcoZ6X8472M4upzkYC6/VgOfqNeYqoUcZJrIUSaMV0i7svkEbgE=
+  nanoclaw:claudeCodeOauthToken:
+    secure: v1:pmoX6qaKtPzHgoCr:MhoR2Q1Pt0CHhSl6zoZoyvux1Lnc9TrJN95y+W2LnDvuBw0QcTxpm8RSpiQ6lcF1yX+/sd0z9mT/TVYHXW2tkY8l4IuH7dTPdA3WgxIpnQNtXUW3Hy6G+sCtVtqLzV9hAevZtA5dBJSoNI4nGjkwzRlnmxKg541/ICzZSA==
+  nanoclaw:slackBotToken:
+    secure: v1:RwKMRuSGnWK8Gy61:4SGxHGrB71R0AVlMgqNhgUh+5RsoR8C5SKE/9LvUkwEgkqLJvtP7fjXz236yWIRZoBd7Xrthj2X/gO4uFIKmFiLEP5IsiFPDads=
+  nanoclaw:slackAppToken:
+    secure: v1:ZKIhJYc4v/OnjAG4:RI2NscvClyojbJtepOj7t06gG6DBCgz3W2laQSDjEHmAUCTfNz1NGvCTuJ8qENDVjcsHEe40WSV9590v1wnfQSKwVE5Vjd35qYG0yIDEv79BUf66+DpMQ89Q/akmmm44BHrvU7PJs70G9GoP1dsl7Gwi
+  nanoclaw:cloudflareTunnelToken:
+    secure: v1:l/06ADLSr2tLL9a9:W37KtdtEBXv2oJvwl9LFQHi/M9aPpqBO9MDRDRWsuN9hW0aM978U7P9gujC2roNbbrSNd7sL1gOI/OrtQMd0wPLgtlPaHuLZZaD5+Jkxjd8RPoR5H+39ti6KR8Zejr6n5qqnzZ5g0pmJn+rEhh5bIQg3LO/qtAPMF3JpOo+IknBr5L7D2n7ivos7+u/5OlkP+eUzg80ZZ9P5xjBlQzsdkG2s54dwzqfgNcF1OuHamdzaHu/IbtcwQ7mM0T/orYO2w8JAvQ==
+  nanoclaw:webAuthToken:
+    secure: v1:T8nWssZMZGoVHadt:OpGcWqMj9CxTAA6drEiU9xcG1ts3h664YN4zuRtZWWALNlNtwawkkbCTcQ9V2yQ=
+  nanoclaw:stixMcpUrl: https://stix.dalab.lol/mcp
+  nanoclaw:stixApiKey:
+    secure: v1:Xhi24gru6FJS2xlJ:CsJpp1hXrEZcjWpUB8juj9rBfWetU/vCJFKZpNOTU6yZgm4am7K/4APYGVVWkxlirQ==
+  nanoclaw:assistantName: stix

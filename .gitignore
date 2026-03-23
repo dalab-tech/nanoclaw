@@ -39,3 +39,15 @@ agents-sdk-docs
 
 # Playwright MCP artifacts
 .playwright-mcp/
+
+# Pulumi (infra stacks have their own node_modules)
+.pulumi/
+
+# Claude Code
+.claude/settings.local.json
+
+# MCP config (contains API keys)
+.mcp.json
+
+# Agent definitions - track everything
+!agents/

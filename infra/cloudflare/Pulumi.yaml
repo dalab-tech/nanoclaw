@@ -1,0 +1,8 @@
+name: dalab-cloudflare
+runtime:
+  name: nodejs
+  options:
+    typescript: true
+description: Cloudflare DNS, redirects, and email routing for lamson-dev account
+backend:
+  url: file://../../../.dalab-cloudflare-state

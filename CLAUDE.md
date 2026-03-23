@@ -6,6 +6,8 @@ Personal Claude assistant. See [README.md](README.md) for philosophy and setup. 
 
 Single Node.js process with skill-based channel system. Channels (WhatsApp, Telegram, Slack, Discord, Gmail) are skills that self-register at startup. Messages route to Claude Agent SDK running in containers (Linux VMs). Each group has isolated filesystem and memory.
 
+This repo also contains infrastructure (Pulumi), agent definitions, and deployment tooling. See @AGENTS.md for full rules.
+
 ## Key Files
 
 | File | Purpose |
@@ -25,8 +27,18 @@ Single Node.js process with skill-based channel system. Channels (WhatsApp, Tele
 | `src/db.ts` | SQLite operations |
 | `groups/{name}/CLAUDE.md` | Per-group memory (isolated) |
 | `container/skills/` | Skills loaded inside agent containers (browser, status, formatting) |
-| `.github/workflows/deploy.yml` | SSH-based deploy (workflow_dispatch only) |
 | `sup` | Remote diagnostics script (status, logs, containers) |
+
+## Infrastructure
+
+| Directory | Purpose |
+|-----------|---------|
+| `infra/gcp/` | Pulumi stack — GCP compute, network, IAM |
+| `infra/oracle/` | Pulumi stack — OCI compute, network |
+| `infra/cloudflare/` | Pulumi stack — DNS, tunnels, email routing |
+| `agents/` | Agent definitions (brain, groups, config) |
+| `scripts/` | Deploy, provisioning, and operational scripts |
+| `.github/workflows/deploy.yml` | Deploys to instances |
 
 ## Skills
 

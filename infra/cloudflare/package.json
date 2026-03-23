@@ -1,0 +1,23 @@
+{
+  "name": "@dalab/infra-cloudflare",
+  "version": "1.0.0",
+  "description": "Pulumi infrastructure for STIX Cloudflare DNS and routing",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "preview": "pulumi preview",
+    "up": "pulumi up",
+    "deploy": "pulumi up --yes"
+  },
+  "dependencies": {
+    "@pulumi/cloudflare": "^6.13.0",
+    "@pulumi/pulumi": "^3.0.0",
+    "@pulumi/random": "^4.19.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  }
+}

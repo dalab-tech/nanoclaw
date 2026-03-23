@@ -1,0 +1,12 @@
+encryptionsalt: v1:jGRXfcAgkZc=:v1:rp13KezknENOIhF/:G7Kv5+jkCDkavEknu42+jFGM+iYoGw==
+config:
+  cloudflare:apiToken:
+    secure: v1:0VFBam6zpu7OMP7Z:+vvH/Is4FgNHlnK+0hCnOhbWWAv7aWrfrt9NykoZ2Er8GEftTOzYKWESDEaTYPGVduoiZo3nztk=
+  cloudflare-dns:dalabLolZoneId: 923f098a0304c8b5b61366a577f5da84
+  cloudflare-dns:dalabTechZoneId: ee4f683966f586ba0c91a8380c35b116
+  cloudflare-dns:iamsonDevZoneId: 8809817f7d53bb47bd14ff31dd6437df
+  cloudflare-dns:lamsonDevZoneId: c72d983067826b80f74d75e65d42d7e9
+  cloudflare-dns:onedictionaryAppZoneId: 281221451255cae91b728e7af6c4c52c
+  cloudflare-dns:tinaiDevZoneId: 9def9927487947b2159fcf0c715c7678
+  cloudflare-dns:vibeboardDevZoneId: 0955d579f71357a1017ab11e77af9379
+  cloudflare-dns:accountId: 4c45c4db8aabd2f5610c10f9016ab054
