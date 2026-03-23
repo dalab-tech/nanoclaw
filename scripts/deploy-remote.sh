@@ -90,6 +90,22 @@ $RUN bash -lc "
   fi
 "
 
+# ── Symlink agent config from repo ───────────────────────────
+# Brain and mount-allowlist are now part of the repo (monorepo).
+# Symlink them to the locations nanoclaw expects.
+
+# Mount-allowlist: repo → ~/.config/nanoclaw/
+if $RUN test -f "$NCLAW_DIR/config/mount-allowlist.json"; then
+  $RUN ln -sf "$NCLAW_DIR/config/mount-allowlist.json" "$NCLAW_CONFIG/mount-allowlist.json"
+fi
+
+# Brain: symlink agent's brain dir for brain-sync to discover
+# Uses TENANT name to find the right agent definition
+if $RUN test -d "$NCLAW_DIR/agents/$TENANT/brain"; then
+  $RUN mkdir -p "$NCLAW_CONFIG"
+  $RUN ln -sfn "$NCLAW_DIR/agents/$TENANT/brain" "$TENANT_HOME/.config/brain"
+fi
+
 # ── Service management ────────────────────────────────────────
 
 # One-time admin tasks (only when running as admin with sudo)
