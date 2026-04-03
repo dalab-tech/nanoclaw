@@ -15,6 +15,7 @@ vi.mock('./config.js', () => ({
   CONTAINER_CPUS: '',
   CONTAINER_MEMORY: '',
   CONTAINER_PIDS_LIMIT: '',
+  OLLAMA_ADMIN_TOOLS: false,
   DATA_DIR: '/tmp/nanoclaw-test-data',
   GROUPS_DIR: '/tmp/nanoclaw-test-groups',
   IDLE_TIMEOUT: 1800000, // 30min
