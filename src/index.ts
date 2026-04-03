@@ -2,18 +2,23 @@ import fs from 'fs';
 import path from 'path';
 
 import { syncBrain } from './brain-sync.js';
+import { OneCLI } from '@onecli-sh/sdk';
+
 import {
   ASSISTANT_NAME,
   CONTAINER_NAME_PREFIX,
-  CREDENTIAL_PROXY_PORT,
+  DEFAULT_TRIGGER,
+  getTriggerPattern,
+  TRIGGER_PATTERN,
+  GROUPS_DIR,
   IDLE_TIMEOUT,
   INSTANCE_ID,
+  MAX_MESSAGES_PER_PROMPT,
+  ONECLI_URL,
   POLL_INTERVAL,
   STORE_DIR,
   TIMEZONE,
-  TRIGGER_PATTERN,
 } from './config.js';
-import { startCredentialProxy } from './credential-proxy.js';
 import { GitHubChannel } from './channels/github.js';
 import './channels/index.js';
 import {
@@ -33,14 +38,15 @@ import {
   cleanupOrphans,
   ensureContainerRuntimeRunning,
   probeRootlessDocker,
-  PROXY_BIND_HOST,
 } from './container-runtime.js';
 import {
   closeDatabase,
   getAllChats,
   getAllRegisteredGroups,
   getAllSessions,
+  deleteSession,
   getAllTasks,
+  getLastBotMessageTimestamp,
   getMessagesSince,
   getNewMessages,
   getRouterState,
@@ -96,6 +102,27 @@ interface ActiveRunState {
 }
 const activeRunState = new Map<string, ActiveRunState>();
 
+const onecli = new OneCLI({ url: ONECLI_URL });
+
+function ensureOneCLIAgent(jid: string, group: RegisteredGroup): void {
+  if (group.isMain) return;
+  const identifier = group.folder.toLowerCase().replace(/_/g, '-');
+  onecli.ensureAgent({ name: group.name, identifier }).then(
+    (res) => {
+      logger.info(
+        { jid, identifier, created: res.created },
+        'OneCLI agent ensured',
+      );
+    },
+    (err) => {
+      logger.debug(
+        { jid, identifier, err: String(err) },
+        'OneCLI agent ensure skipped',
+      );
+    },
+  );
+}
+
 function loadState(): void {
   lastTimestamp = getRouterState('last_timestamp') || '';
   const agentTs = getRouterState('last_agent_timestamp');
@@ -111,6 +138,27 @@ function loadState(): void {
     { groupCount: Object.keys(registeredGroups).length },
     'State loaded',
   );
+}
+
+/**
+ * Return the message cursor for a group, recovering from the last bot reply
+ * if lastAgentTimestamp is missing (new group, corrupted state, restart).
+ */
+function getOrRecoverCursor(chatJid: string): string {
+  const existing = lastAgentTimestamp[chatJid];
+  if (existing) return existing;
+
+  const botTs = getLastBotMessageTimestamp(chatJid, ASSISTANT_NAME);
+  if (botTs) {
+    logger.info(
+      { chatJid, recoveredFrom: botTs },
+      'Recovered message cursor from last bot reply',
+    );
+    lastAgentTimestamp[chatJid] = botTs;
+    saveState();
+    return botTs;
+  }
+  return '';
 }
 
 function saveState(): void {
@@ -135,6 +183,29 @@ function registerGroup(jid: string, group: RegisteredGroup): void {
 
   // Create group folder
   fs.mkdirSync(path.join(groupDir, 'logs'), { recursive: true });
+
+  // Copy CLAUDE.md template into the new group folder so agents have
+  // identity and instructions from the first run.  (Fixes #1391)
+  const groupMdFile = path.join(groupDir, 'CLAUDE.md');
+  if (!fs.existsSync(groupMdFile)) {
+    const templateFile = path.join(
+      GROUPS_DIR,
+      group.isMain ? 'main' : 'global',
+      'CLAUDE.md',
+    );
+    if (fs.existsSync(templateFile)) {
+      let content = fs.readFileSync(templateFile, 'utf-8');
+      if (ASSISTANT_NAME !== 'Andy') {
+        content = content.replace(/^# Andy$/m, `# ${ASSISTANT_NAME}`);
+        content = content.replace(/You are Andy/g, `You are ${ASSISTANT_NAME}`);
+      }
+      fs.writeFileSync(groupMdFile, content);
+      logger.info({ folder: group.folder }, 'Created CLAUDE.md from template');
+    }
+  }
+
+  // Ensure a corresponding OneCLI agent exists (best-effort, non-blocking)
+  ensureOneCLIAgent(jid, group);
 
   logger.info(
     { jid, name: group.name, folder: group.folder },
@@ -235,24 +306,25 @@ async function processGroupMessages(
     }
   }
 
-  const sinceTimestamp = lastAgentTimestamp[cKey] || '';
   // Pass null (not undefined) when no threadTs to filter to top-level messages only.
   // undefined means "no filter" which would include thread messages in top-level processing.
   const missedMessages = getMessagesSince(
     chatJid,
-    sinceTimestamp,
+    lastAgentTimestamp[cKey] || getOrRecoverCursor(chatJid),
     ASSISTANT_NAME,
     threadTs ?? null,
+    MAX_MESSAGES_PER_PROMPT,
   );
 
   if (missedMessages.length === 0 && !wipContent) return true;
 
   // For non-main groups, check if trigger is required and present
   if (!isMainGroup && group.requiresTrigger !== false && !isBotThread) {
+    const triggerPattern = getTriggerPattern(group.trigger);
     const allowlistCfg = loadSenderAllowlist();
     const hasTrigger = missedMessages.some(
       (m) =>
-        TRIGGER_PATTERN.test(m.content.trim()) &&
+        triggerPattern.test(m.content.trim()) &&
         (m.is_from_me || isTriggerAllowed(chatJid, m.sender, allowlistCfg)),
     );
     if (!hasTrigger && !wipContent) return true;
@@ -426,6 +498,7 @@ async function runAgent(
       id: t.id,
       groupFolder: t.group_folder,
       prompt: t.prompt,
+      script: t.script || undefined,
       schedule_type: t.schedule_type,
       schedule_value: t.schedule_value,
       status: t.status,
@@ -481,6 +554,26 @@ async function runAgent(
     }
 
     if (output.status === 'error') {
+      // Detect stale/corrupt session — clear it so the next retry starts fresh.
+      // The session .jsonl can go missing after a crash mid-write, manual
+      // deletion, or disk-full. The existing backoff in group-queue.ts
+      // handles the retry; we just need to remove the broken session ID.
+      const isStaleSession =
+        sessionId &&
+        output.error &&
+        /no conversation found|ENOENT.*\.jsonl|session.*not found/i.test(
+          output.error,
+        );
+
+      if (isStaleSession) {
+        logger.warn(
+          { group: group.name, staleSessionId: sessionId, error: output.error },
+          'Stale session detected — clearing for next retry',
+        );
+        delete sessions[group.folder];
+        deleteSession(group.folder);
+      }
+
       logger.error(
         { group: group.name, error: output.error },
         'Container agent error',
@@ -502,7 +595,7 @@ async function startMessageLoop(): Promise<void> {
   }
   messageLoopRunning = true;
 
-  logger.info(`NanoClaw running (trigger: @${ASSISTANT_NAME})`);
+  logger.info(`NanoClaw running (default trigger: ${DEFAULT_TRIGGER})`);
 
   while (true) {
     try {
@@ -552,10 +645,11 @@ async function startMessageLoop(): Promise<void> {
 
           // For non-main groups, only act on trigger messages.
           if (needsTrigger) {
+            const triggerPattern = getTriggerPattern(group.trigger);
             const allowlistCfg = loadSenderAllowlist();
             const hasTrigger = groupMessages.some(
               (m) =>
-                TRIGGER_PATTERN.test(m.content.trim()) &&
+                triggerPattern.test(m.content.trim()) &&
                 (m.is_from_me ||
                   isTriggerAllowed(chatJid, m.sender, allowlistCfg)),
             );
@@ -570,6 +664,7 @@ async function startMessageLoop(): Promise<void> {
             lastAgentTimestamp[cKey] || '',
             ASSISTANT_NAME,
             threadTs ?? null,
+            MAX_MESSAGES_PER_PROMPT,
           );
           const messagesToSend =
             allPending.length > 0 ? allPending : groupMessages;
@@ -648,8 +743,13 @@ function recoverPendingMessages(): void {
     }
 
     // Check for unprocessed messages, grouped by thread
-    const sinceTimestamp = lastAgentTimestamp[chatJid] || '';
-    const pending = getMessagesSince(chatJid, sinceTimestamp, ASSISTANT_NAME);
+    const pending = getMessagesSince(
+      chatJid,
+      getOrRecoverCursor(chatJid),
+      ASSISTANT_NAME,
+      undefined,
+      MAX_MESSAGES_PER_PROMPT,
+    );
     if (pending.length > 0) {
       const threadKeys = new Set<string | undefined>();
       for (const msg of pending) {
@@ -689,13 +789,14 @@ async function main(): Promise<void> {
   logger.info('Database initialized');
   loadState();
   syncBrain();
-  restoreRemoteControl();
 
-  // Start credential proxy (containers route API calls through this)
-  const proxyServer = await startCredentialProxy(
-    CREDENTIAL_PROXY_PORT,
-    PROXY_BIND_HOST,
-  );
+  // Ensure OneCLI agents exist for all registered groups.
+  // Recovers from missed creates (e.g. OneCLI was down at registration time).
+  for (const [jid, group] of Object.entries(registeredGroups)) {
+    ensureOneCLIAgent(jid, group);
+  }
+
+  restoreRemoteControl();
 
   // Graceful shutdown handler
   const shutdown = async (signal: string) => {
@@ -745,7 +846,6 @@ async function main(): Promise<void> {
       setRouterState('restart_notified_jids', JSON.stringify(notifiedJids));
     }
 
-    proxyServer.close();
     // Disconnect channels first to stop accepting new messages during shutdown
     for (const ch of channels) await ch.disconnect();
     await queue.shutdown(10000);
@@ -1011,6 +1111,7 @@ async function main(): Promise<void> {
         id: t.id,
         groupFolder: t.group_folder,
         prompt: t.prompt,
+        script: t.script || undefined,
         schedule_type: t.schedule_type,
         schedule_value: t.schedule_value,
         status: t.status,
