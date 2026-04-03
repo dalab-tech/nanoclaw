@@ -17,6 +17,7 @@ const envConfig = readEnvFile([
   'CONTAINER_PIDS_LIMIT',
   'LITESTREAM_ENABLED',
   'GCS_BACKUP_BUCKET',
+  'OLLAMA_ADMIN_TOOLS',
   'ONECLI_URL',
   'TZ',
 ]);
@@ -26,6 +27,8 @@ export const ASSISTANT_NAME =
 export const ASSISTANT_HAS_OWN_NUMBER =
   (process.env.ASSISTANT_HAS_OWN_NUMBER ||
     envConfig.ASSISTANT_HAS_OWN_NUMBER) === 'true';
+export const OLLAMA_ADMIN_TOOLS =
+  (process.env.OLLAMA_ADMIN_TOOLS || envConfig.OLLAMA_ADMIN_TOOLS) === 'true';
 export const POLL_INTERVAL = 2000;
 export const SCHEDULER_POLL_INTERVAL = 60000;
 
